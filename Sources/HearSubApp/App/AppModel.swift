@@ -742,6 +742,7 @@ final class AppModel: ObservableObject {
             isOverlayVisible = false
             if sessionState != .running {
                 overlayState = nil
+                setStatus(allSources.isEmpty ? .noInputSourcesDetected : .ready)
             }
         } else {
             if sessionState == .running {
