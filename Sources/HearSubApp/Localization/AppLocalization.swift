@@ -70,6 +70,9 @@ enum AppTextKey: String {
     case subtitleOverlay
     case stopWhenHidingOverlay
     case stopWhenHidingOverlayHint
+    case subtitleLineOrder
+    case subtitleLineOrderSourceFirst
+    case subtitleLineOrderTranslationFirst
     case textOutline
     case outlineColor
     case attachToSource
@@ -376,6 +379,9 @@ enum AppLocalization {
             "subtitleOverlay": "Subtitle Overlay",
             "stopWhenHidingOverlay": "Stop transcription when closing subtitles",
             "stopWhenHidingOverlayHint": "When enabled, the close button on the subtitle overlay stops the current session instead of only hiding subtitles.",
+            "subtitleLineOrder": "Subtitle Order",
+            "subtitleLineOrderSourceFirst": "Original above translation",
+            "subtitleLineOrderTranslationFirst": "Translation above original",
             "textOutline": "Text Outline",
             "outlineColor": "Outline Color",
             "attachToSource": "Attach to Source",
@@ -385,8 +391,8 @@ enum AppLocalization {
             "topInset": "Top Inset",
             "widthRatio": "Width Ratio",
             "backgroundOpacity": "Background Opacity",
-            "translatedFont": "Translated Font",
-            "sourceFont": "Source Font",
+            "translatedFont": "Upper Line Size",
+            "sourceFont": "Lower Line Size",
             "overlay": "Overlay",
             "hideOverlay": "Hide Overlay",
             "opacity": "Opacity",
@@ -562,6 +568,9 @@ enum AppLocalization {
             "subtitleOverlay": "字幕浮层",
             "stopWhenHidingOverlay": "关闭字幕时停止转写",
             "stopWhenHidingOverlayHint": "开启后，点击字幕浮层的关闭按钮会停止当前会话，而不是只隐藏字幕。",
+            "subtitleLineOrder": "字幕顺序",
+            "subtitleLineOrderSourceFirst": "原文在上，译文在下",
+            "subtitleLineOrderTranslationFirst": "译文在上，原文在下",
             "textOutline": "文字描边",
             "outlineColor": "描边颜色",
             "attachToSource": "附着到源应用",
@@ -571,8 +580,8 @@ enum AppLocalization {
             "topInset": "顶部边距",
             "widthRatio": "宽度比例",
             "backgroundOpacity": "背景透明度",
-            "translatedFont": "译文字体",
-            "sourceFont": "原文字体",
+            "translatedFont": "上方字号",
+            "sourceFont": "下方字号",
             "overlay": "浮层",
             "hideOverlay": "隐藏浮层",
             "opacity": "透明度",

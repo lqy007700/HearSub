@@ -61,6 +61,13 @@ struct OverlayColor: Codable, Equatable {
     }
 }
 
+enum SubtitleLineOrder: String, Codable, CaseIterable, Identifiable {
+    case sourceFirst
+    case translationFirst
+
+    var id: String { rawValue }
+}
+
 struct OverlayStyle: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case targetDisplayID
@@ -76,7 +83,7 @@ struct OverlayStyle: Codable, Equatable {
         case translatedFontSize
         case sourceFontSize
         case clickThrough
-        case translatedFirst
+        case lineOrder
         case overlayScaleFactor
         case attachToSource
     }
@@ -98,8 +105,7 @@ struct OverlayStyle: Codable, Equatable {
     var translatedFontSize: Double
     var sourceFontSize: Double
     var clickThrough: Bool
-    // Retained for backwards compatibility with persisted settings.
-    var translatedFirst: Bool
+    var lineOrder: SubtitleLineOrder
     var overlayScaleFactor: Double
     var attachToSource: Bool
 
@@ -120,7 +126,7 @@ struct OverlayStyle: Codable, Equatable {
         translatedFontSize: 24,
         sourceFontSize: 18,
         clickThrough: true,
-        translatedFirst: true,
+        lineOrder: .sourceFirst,
         overlayScaleFactor: 1.0,
         attachToSource: false
     )
@@ -139,7 +145,7 @@ struct OverlayStyle: Codable, Equatable {
         translatedFontSize: Double,
         sourceFontSize: Double,
         clickThrough: Bool,
-        translatedFirst: Bool,
+        lineOrder: SubtitleLineOrder,
         overlayScaleFactor: Double = 1.0,
         attachToSource: Bool = false
     ) {
@@ -156,7 +162,7 @@ struct OverlayStyle: Codable, Equatable {
         self.translatedFontSize = translatedFontSize
         self.sourceFontSize = sourceFontSize
         self.clickThrough = clickThrough
-        self.translatedFirst = translatedFirst
+        self.lineOrder = lineOrder
         self.overlayScaleFactor = overlayScaleFactor
         self.attachToSource = attachToSource
     }
@@ -183,7 +189,8 @@ struct OverlayStyle: Codable, Equatable {
         translatedFontSize = try c.decode(Double.self, forKey: .translatedFontSize)
         sourceFontSize     = try c.decode(Double.self, forKey: .sourceFontSize)
         clickThrough       = try c.decode(Bool.self,   forKey: .clickThrough)
-        translatedFirst    = try c.decodeIfPresent(Bool.self, forKey: .translatedFirst) ?? true
+        lineOrder = try c.decodeIfPresent(SubtitleLineOrder.self, forKey: .lineOrder)
+            ?? .sourceFirst
         overlayScaleFactor = try c.decodeIfPresent(Double.self, forKey: .overlayScaleFactor) ?? 1.0
         attachToSource = try c.decodeIfPresent(Bool.self, forKey: .attachToSource) ?? false
     }

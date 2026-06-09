@@ -823,7 +823,6 @@ final class AppModel: ObservableObject {
 
     private static func normalizedOverlayStyle(_ style: OverlayStyle) -> OverlayStyle {
         var normalized = style
-        normalized.translatedFirst = true
         if normalized.widthRatio <= 0.68,
            normalized.backgroundOpacity <= 0.24,
            normalized.topInset >= 40,

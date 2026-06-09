@@ -265,6 +265,18 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
                     sectionHeader(model.localized(.subtitleOverlay), icon: "captions.bubble")
+                    settingsRow(model.localized(.subtitleLineOrder)) {
+                        Picker("", selection: overlayLineOrderBinding) {
+                            Text(model.localized(.subtitleLineOrderSourceFirst))
+                                .tag(SubtitleLineOrder.sourceFirst)
+                            Text(model.localized(.subtitleLineOrderTranslationFirst))
+                                .tag(SubtitleLineOrder.translationFirst)
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 190)
+                    }
+                    Divider()
                     settingsRow(model.localized(.stopWhenHidingOverlay)) {
                         Toggle("", isOn: $model.stopsSessionWhenHidingOverlay)
                             .toggleStyle(.switch)
@@ -498,6 +510,10 @@ struct SettingsView: View {
 
     private var sourceFontBinding: Binding<Double> {
         overlayBinding(\.sourceFontSize)
+    }
+
+    private var overlayLineOrderBinding: Binding<SubtitleLineOrder> {
+        overlayBinding(\.lineOrder)
     }
 
     @ViewBuilder private var selectedSourceLanguageRows: some View {

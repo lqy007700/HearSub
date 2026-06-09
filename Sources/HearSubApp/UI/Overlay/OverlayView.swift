@@ -6,6 +6,11 @@ enum OverlayPanelMetrics {
 }
 
 struct OverlayView: View {
+    private enum CaptionProminence {
+        case primary
+        case secondary
+    }
+
     @ObservedObject var model: AppModel
     @ObservedObject var interactionState: OverlayInteractionState
     var onMoveDragStart: () -> Void = {}
@@ -218,27 +223,27 @@ struct OverlayView: View {
         )
     }
 
-    private func translatedText(_ text: String, color: Color) -> some View {
+    private func primaryCaptionText(_ text: String, color: Color) -> some View {
         captionText(
             attributedCaptionText(
                 text: text,
                 fillColor: color
             ),
             rawText: text,
-            fontSize: model.overlayStyle.scaledTranslatedFontSize,
-            weight: .semibold
+            fontSize: fontSize(for: .primary),
+            weight: fontWeight(for: .primary)
         )
     }
 
-    private func sourceText(_ text: String, color: Color) -> some View {
+    private func secondaryCaptionText(_ text: String, color: Color) -> some View {
         captionText(
             attributedCaptionText(
                 text: text,
                 fillColor: color
             ),
             rawText: text,
-            fontSize: displayedSourceFontSize,
-            weight: displayedSourceFontWeight
+            fontSize: fontSize(for: .secondary),
+            weight: fontWeight(for: .secondary)
         )
     }
 
@@ -256,39 +261,11 @@ struct OverlayView: View {
                 )
                 applyingPromotionTransition(
                     to: VStack(spacing: 2) {
-                        if showsTranslatedSubtitle {
-                            if let draftTranslated = visibleDraftTranslatedText {
-                                translatedText(
-                                    draftTranslated,
-                                    color: subtitleColor(opacity: 0.55)
-                                )
-                            } else if model.shouldReserveDraftTranslationSlot {
-                                Text(" ")
-                                    .font(.system(size: model.overlayStyle.scaledTranslatedFontSize, weight: .semibold))
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity)
-                                    .hidden()
-                                    .accessibilityHidden(true)
-                            }
-                        }
-
-                        if showsOriginalSubtitle {
-                            let prefixLen = min(state.draftStablePrefixLength, draftText.count)
-                            let stable = String(draftText.prefix(prefixLen))
-                            let mutable = String(draftText.dropFirst(prefixLen))
-
-                            captionText(
-                                draftSourceAttributedText(
-                                    stable: stable,
-                                    mutable: mutable
-                                ),
-                                rawText: draftText,
-                                fontSize: displayedSourceFontSize,
-                                weight: displayedSourceFontWeight
-                            )
-                        }
+                        draftCaptionPair(
+                            translated: visibleDraftTranslatedText,
+                            source: draftText,
+                            stablePrefixLength: state.draftStablePrefixLength
+                        )
                     }
                     .background(draftSlotHeightReader),
                     key: promotionKey(
@@ -306,6 +283,101 @@ struct OverlayView: View {
             maxHeight: draftSlotHeight(for: state),
             alignment: .top
         )
+    }
+
+    @ViewBuilder
+    private func draftCaptionPair(
+        translated: String?,
+        source: String,
+        stablePrefixLength: Int
+    ) -> some View {
+        let hasTranslation = showsTranslatedSubtitle && (translated?.isEmpty == false)
+        let showsSourceLine = showsOriginalSubtitle && source.isEmpty == false
+        let reservesTranslation = showsTranslatedSubtitle && model.shouldReserveDraftTranslationSlot
+
+        switch model.overlayStyle.lineOrder {
+        case .sourceFirst:
+            if showsSourceLine {
+                draftSourceText(
+                    source,
+                    stablePrefixLength: stablePrefixLength,
+                    prominence: .primary
+                )
+            }
+
+            if hasTranslation, let translated {
+                draftTranslatedText(
+                    translated,
+                    prominence: showsSourceLine ? .secondary : .primary
+                )
+            } else if reservesTranslation && showsSourceLine == false {
+                reservedPrimaryCaptionSlot()
+            }
+
+        case .translationFirst:
+            if hasTranslation, let translated {
+                draftTranslatedText(
+                    translated,
+                    prominence: .primary
+                )
+            } else if reservesTranslation {
+                reservedPrimaryCaptionSlot()
+            }
+
+            if showsSourceLine {
+                draftSourceText(
+                    source,
+                    stablePrefixLength: stablePrefixLength,
+                    prominence: (hasTranslation || reservesTranslation) ? .secondary : .primary
+                )
+            }
+        }
+    }
+
+    private func draftTranslatedText(
+        _ text: String,
+        prominence: CaptionProminence
+    ) -> some View {
+        captionText(
+            attributedCaptionText(
+                text: text,
+                fillColor: subtitleColor(opacity: 0.55)
+            ),
+            rawText: text,
+            fontSize: fontSize(for: prominence),
+            weight: fontWeight(for: prominence)
+        )
+    }
+
+    private func draftSourceText(
+        _ text: String,
+        stablePrefixLength: Int,
+        prominence: CaptionProminence
+    ) -> some View {
+        let prefixLen = min(stablePrefixLength, text.count)
+        let stable = String(text.prefix(prefixLen))
+        let mutable = String(text.dropFirst(prefixLen))
+
+        return captionText(
+            draftSourceAttributedText(
+                stable: stable,
+                mutable: mutable
+            ),
+            rawText: text,
+            fontSize: fontSize(for: prominence),
+            weight: fontWeight(for: prominence)
+        )
+    }
+
+    private func reservedPrimaryCaptionSlot() -> some View {
+        Text(" ")
+            .font(.system(size: fontSize(for: .primary), weight: fontWeight(for: .primary)))
+            .multilineTextAlignment(.center)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .hidden()
+            .accessibilityHidden(true)
     }
 
     private func historyEntry(
@@ -583,37 +655,56 @@ struct OverlayView: View {
             translated: translated,
             source: source
         )
-        let primaryTranslatedText = usesFallback ? source : translated
+        let translatedLineText = usesFallback ? source : translated
+        let showsTranslatedLine = showsTranslatedSubtitle && translatedLineText.isEmpty == false
         let showsSourceLine = showsOriginalSubtitle && source.isEmpty == false && usesFallback == false
 
         return VStack(spacing: Self.captionPairSpacing) {
-            if model.overlayStyle.translatedFirst {
-                if showsTranslatedSubtitle {
-                    translatedText(
-                        primaryTranslatedText,
-                        color: translatedColor
-                    )
-                }
-
+            switch model.overlayStyle.lineOrder {
+            case .sourceFirst:
                 if showsSourceLine {
-                    sourceText(
-                        source,
-                        color: sourceColor
-                    )
-                }
-            } else {
-                if showsSourceLine {
-                    sourceText(
+                    primaryCaptionText(
                         source,
                         color: sourceColor
                     )
                 }
 
-                if showsTranslatedSubtitle {
-                    translatedText(
-                        primaryTranslatedText,
+                if showsTranslatedLine {
+                    let isPrimary = showsSourceLine == false
+                    if isPrimary {
+                        primaryCaptionText(
+                            translatedLineText,
+                            color: translatedColor
+                        )
+                    } else {
+                        secondaryCaptionText(
+                            translatedLineText,
+                            color: translatedColor
+                        )
+                    }
+                }
+
+            case .translationFirst:
+                if showsTranslatedLine {
+                    primaryCaptionText(
+                        translatedLineText,
                         color: translatedColor
                     )
+                }
+
+                if showsSourceLine {
+                    let isPrimary = showsTranslatedLine == false
+                    if isPrimary {
+                        primaryCaptionText(
+                            source,
+                            color: sourceColor
+                        )
+                    } else {
+                        secondaryCaptionText(
+                            source,
+                            color: sourceColor
+                        )
+                    }
                 }
             }
         }
@@ -637,26 +728,30 @@ struct OverlayView: View {
         CGFloat(model.overlayStyle.scaledTranslatedFontSize + 10.0)
     }
 
+    private func fontSize(for prominence: CaptionProminence) -> Double {
+        switch prominence {
+        case .primary:
+            model.overlayStyle.scaledTranslatedFontSize
+        case .secondary:
+            model.overlayStyle.scaledSourceFontSize
+        }
+    }
+
+    private func fontWeight(for prominence: CaptionProminence) -> Font.Weight {
+        switch prominence {
+        case .primary:
+            .semibold
+        case .secondary:
+            .regular
+        }
+    }
+
     private var sourceLineHeight: CGFloat {
-        if usesTranslatedTypographyForSourceText {
+        if showsOriginalSubtitle && !showsTranslatedSubtitle {
             return translatedLineHeight
         }
 
         return CGFloat(model.overlayStyle.scaledSourceFontSize + 14.0)
-    }
-
-    private var usesTranslatedTypographyForSourceText: Bool {
-        showsOriginalSubtitle && !showsTranslatedSubtitle
-    }
-
-    private var displayedSourceFontSize: Double {
-        usesTranslatedTypographyForSourceText
-            ? model.overlayStyle.scaledTranslatedFontSize
-            : model.overlayStyle.scaledSourceFontSize
-    }
-
-    private var displayedSourceFontWeight: Font.Weight {
-        usesTranslatedTypographyForSourceText ? .semibold : .regular
     }
 
     private func estimatedCaptionPairHeight(
