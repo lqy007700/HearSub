@@ -16,7 +16,7 @@ final class TranscriptWindowController: NSWindowController, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: TranscriptView(model: model))
         window.contentViewController = hostingController
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 560, height: 520))
+        window.setContentSize(NSSize(width: 760, height: 520))
         window.center()
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -49,18 +49,28 @@ struct TranscriptView: View {
     @ObservedObject var model: AppModel
     @State private var showsTranslations = true
     @State private var searchText = ""
+    @State private var selectedSessionID: UUID?
     @State private var exportError: String?
 
     var body: some View {
         VStack(spacing: 0) {
             headerBar
             Divider()
-            transcriptList
+            content
             Divider()
             bottomBar
         }
-        .frame(minWidth: 520, minHeight: 480)
+        .frame(minWidth: 760, minHeight: 520)
         .environment(\.locale, model.interfaceLocale)
+        .onAppear {
+            syncSelectedSession()
+        }
+        .onChange(of: searchText) { _ in
+            syncSelectedSession()
+        }
+        .onChange(of: model.transcriptGeneration) { _ in
+            syncSelectedSession()
+        }
     }
 
     // MARK: - Header Bar
@@ -73,9 +83,9 @@ struct TranscriptView: View {
 
             TextField(model.localized(.search), text: $searchText)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 180)
+                .frame(width: 220)
 
-            Text(model.localized(.transcriptCountFormat, filteredTranscriptEntries.count, model.transcriptEntries.count))
+            Text("\(filteredSessions.count)/\(model.transcriptSessions.count)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
@@ -89,28 +99,141 @@ struct TranscriptView: View {
 
     // MARK: - Content
 
-    @ViewBuilder
-    private var transcriptList: some View {
+    private var content: some View {
+        HStack(spacing: 0) {
+            sessionList
+                .frame(width: 260)
+            Divider()
+            sessionDetail
+        }
+    }
+
+    private var sessionList: some View {
         ScrollView {
-            if filteredTranscriptEntries.isEmpty {
+            LazyVStack(spacing: 6) {
+                if filteredSessions.isEmpty {
+                    Text("–")
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(20)
+                } else {
+                    ForEach(filteredSessions) { session in
+                        sessionRow(session)
+                    }
+                }
+            }
+            .padding(10)
+        }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+    }
+
+    private func sessionRow(_ session: TranscriptSession) -> some View {
+        Button {
+            selectedSessionID = session.id
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(sessionTitle(session))
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(session.entries.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(sessionDateRange(session))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                if let preview = sessionPreview(session) {
+                    Text(preview)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(selectedSessionID == session.id ? Color.accentColor.opacity(0.14) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(selectedSessionID == session.id ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var sessionDetail: some View {
+        if let selectedSession {
+            VStack(spacing: 0) {
+                detailHeader(selectedSession)
+                Divider()
+                transcriptList(selectedSession)
+            }
+        } else {
+            Text("–")
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func detailHeader(_ session: TranscriptSession) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(sessionTitle(session))
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(sessionDateRange(session))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(session.entries.count) segments")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Button {
+                model.deleteTranscriptSession(id: session.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(model.localized(.delete))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func transcriptList(_ session: TranscriptSession) -> some View {
+        ScrollView {
+            let entries = filteredEntries(in: session)
+            if entries.isEmpty {
                 Text("–")
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(20)
             } else {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(filteredTranscriptEntries) { entry in
-                        transcriptEntryRow(entry)
+                    ForEach(entries) { entry in
+                        transcriptEntryRow(entry, sessionID: session.id)
                         Divider()
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 10)
             }
         }
     }
 
-    private func transcriptEntryRow(_ entry: TranscriptEntry) -> some View {
+    private func transcriptEntryRow(_ entry: TranscriptEntry, sessionID: UUID) -> some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.sourceText.isEmpty ? "–" : entry.sourceText)
@@ -129,7 +252,7 @@ struct TranscriptView: View {
             }
 
             Button {
-                model.deleteTranscriptEntry(id: entry.id)
+                model.deleteTranscriptEntry(id: entry.id, from: sessionID)
             } label: {
                 Image(systemName: "trash")
             }
@@ -158,7 +281,7 @@ struct TranscriptView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
-            .disabled(filteredTranscriptEntries.isEmpty)
+            .disabled(displayEntries.isEmpty)
 
             Button(model.localized(.clear)) {
                 confirmClearTranscript()
@@ -175,7 +298,7 @@ struct TranscriptView: View {
     // MARK: - Data Helpers
 
     private var displayText: String {
-        filteredTranscriptEntries
+        displayEntries
             .flatMap { entry -> [String] in
                 if showsTranslations, entry.translatedText.isEmpty == false {
                     return [entry.sourceText, entry.translatedText]
@@ -187,17 +310,98 @@ struct TranscriptView: View {
             .joined(separator: "\n")
     }
 
-    private var filteredTranscriptEntries: [TranscriptEntry] {
+    private var selectedSession: TranscriptSession? {
+        guard let selectedSessionID else { return filteredSessions.first }
+        return filteredSessions.first(where: { $0.id == selectedSessionID }) ?? filteredSessions.first
+    }
+
+    private var displayEntries: [TranscriptEntry] {
+        guard let selectedSession else { return [] }
+        return filteredEntries(in: selectedSession)
+    }
+
+    private var filteredSessions: [TranscriptSession] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard query.isEmpty == false else {
-            return model.transcriptEntries
+            return Array(model.transcriptSessions.reversed())
         }
 
-        return model.transcriptEntries.filter { entry in
+        return Array(model.transcriptSessions.reversed()).filter { session in
+            sessionTitle(session).localizedCaseInsensitiveContains(query)
+                || session.entries.contains { entry in
+                    entry.sourceText.localizedCaseInsensitiveContains(query)
+                        || entry.translatedText.localizedCaseInsensitiveContains(query)
+                }
+        }
+    }
+
+    private func filteredEntries(in session: TranscriptSession) -> [TranscriptEntry] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.isEmpty == false else {
+            return session.entries
+        }
+
+        return session.entries.filter { entry in
             entry.sourceText.localizedCaseInsensitiveContains(query)
                 || entry.translatedText.localizedCaseInsensitiveContains(query)
         }
     }
+
+    private func syncSelectedSession() {
+        let sessions = filteredSessions
+        if let selectedSessionID,
+           sessions.contains(where: { $0.id == selectedSessionID }) {
+            return
+        }
+        selectedSessionID = sessions.first?.id
+    }
+
+    private func sessionTitle(_ session: TranscriptSession) -> String {
+        if let title = session.title, title.isEmpty == false {
+            return title
+        }
+        if session.startedAt == Date.distantPast {
+            return "Imported transcript"
+        }
+        return Self.titleDateFormatter.string(from: session.startedAt)
+    }
+
+    private func sessionDateRange(_ session: TranscriptSession) -> String {
+        guard session.startedAt != Date.distantPast else {
+            return "\(session.entries.count) segments"
+        }
+
+        let start = Self.detailDateFormatter.string(from: session.startedAt)
+        guard let endedAt = session.endedAt else {
+            return "\(start) – Running"
+        }
+        return "\(start) – \(Self.timeFormatter.string(from: endedAt))"
+    }
+
+    private func sessionPreview(_ session: TranscriptSession) -> String? {
+        session.entries.last?.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static let titleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .medium
+        return formatter
+    }()
 
     private func exportCurrentText() {
         exportError = nil

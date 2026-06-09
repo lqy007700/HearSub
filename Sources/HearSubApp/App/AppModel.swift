@@ -49,6 +49,7 @@ final class AppModel: ObservableObject {
     private var recentRecognizedCaptionTexts: [RecentRecognizedCaption] = []
     private var recentArchivedCaption: RecentArchivedCaption?
     private var finalizedDraftPromotionIDs: [(id: UUID, time: Date)] = []
+    private var activeTranscriptSessionID: UUID?
     private var transcriptInputLanguageID: String?
     private var transcriptOutputLanguageID: String?
     private var statusDescriptor: StatusDescriptor = .ready
@@ -58,6 +59,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var statusMessage = ""
     @Published private(set) var overlayState: OverlayPreviewState?
     @Published private(set) var languageResourceStatuses: [LanguageResourceStatus] = []
+    @Published private(set) var transcriptSessions: [TranscriptSession] = []
     @Published private(set) var transcriptEntries: [TranscriptEntry] = []
     @Published private(set) var transcriptGeneration: Int = 0
     @Published var isOverlayVisible = false
@@ -235,7 +237,8 @@ final class AppModel: ObservableObject {
         self.translationProvider = .openAICompatible
         self.openAICompatibleTranslation = settings.openAICompatibleTranslation
         self.hasCompletedOnboarding = settings.hasCompletedOnboarding
-        self.transcriptEntries = persistedTranscript.entries
+        self.transcriptSessions = persistedTranscript.sessions
+        self.transcriptEntries = persistedTranscript.sessions.last?.entries ?? persistedTranscript.entries
         self.transcriptInputLanguageID = persistedTranscript.sourceLanguageID
         self.transcriptOutputLanguageID = persistedTranscript.targetLanguageID
         AppLocalization.updateEmbeddedBundleLocalizationLanguageID(self.interfaceLanguageID)
@@ -605,6 +608,8 @@ final class AppModel: ObservableObject {
             return
         }
 
+        let previousTranscriptSessions = transcriptSessions
+        let previousActiveTranscriptSessionID = activeTranscriptSessionID
         let previousTranscriptEntries = transcriptEntries
         let previousTranscriptInputLanguageID = transcriptInputLanguageID
         let previousTranscriptOutputLanguageID = transcriptOutputLanguageID
@@ -681,6 +686,8 @@ final class AppModel: ObservableObject {
             liveTranscriptionSession = nil
             liveTranscriptionSessions.removeAll()
             restoreTranscript(
+                sessions: previousTranscriptSessions,
+                activeSessionID: previousActiveTranscriptSessionID,
                 entries: previousTranscriptEntries,
                 sourceLanguageID: previousTranscriptInputLanguageID,
                 targetLanguageID: previousTranscriptOutputLanguageID
@@ -700,6 +707,7 @@ final class AppModel: ObservableObject {
     func stopSession() {
         resetLiveTextPipeline()
         stopLiveTranscriptionSessions()
+        finishActiveTranscriptSessionIfNeeded()
         sessionState = .idle
         setStatus(allSources.isEmpty ? .noInputSourcesDetected : .ready)
         isOverlayVisible = false
@@ -736,7 +744,11 @@ final class AppModel: ObservableObject {
                 overlayState = nil
             }
         } else {
-            showOverlayPreview()
+            if sessionState == .running {
+                isOverlayVisible = true
+            } else {
+                showOverlayPreview()
+            }
         }
     }
 
@@ -1760,7 +1772,7 @@ final class AppModel: ObservableObject {
     }
 
     var hasTranscript: Bool {
-        transcriptEntries.isEmpty == false
+        transcriptSessions.contains { $0.entries.isEmpty == false }
     }
 
     func transcriptText(isTranslation: Bool) -> String {
@@ -1771,15 +1783,26 @@ final class AppModel: ObservableObject {
     }
 
     func clearTranscript() {
+        transcriptSessions.removeAll()
         transcriptEntries.removeAll()
+        activeTranscriptSessionID = nil
         transcriptGeneration &+= 1
         persistTranscript()
         clearOverlayHistory()
     }
 
-    func deleteTranscriptEntry(id: UUID) {
-        guard let index = transcriptEntries.firstIndex(where: { $0.id == id }) else { return }
-        transcriptEntries.remove(at: index)
+    func deleteTranscriptEntry(id: UUID, from sessionID: UUID? = nil) {
+        let resolvedSessionID = sessionID ?? activeTranscriptSessionID
+        guard let resolvedSessionID,
+              let sessionIndex = transcriptSessions.firstIndex(where: { $0.id == resolvedSessionID }),
+              let entryIndex = transcriptSessions[sessionIndex].entries.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        transcriptSessions[sessionIndex].entries.remove(at: entryIndex)
+        if activeTranscriptSessionID == resolvedSessionID {
+            transcriptEntries = transcriptSessions[sessionIndex].entries
+        }
         transcriptGeneration &+= 1
         persistTranscript()
         let previousHistoryCount = overlayState?.history.count ?? 0
@@ -1787,6 +1810,35 @@ final class AppModel: ObservableObject {
         if (overlayState?.history.count ?? 0) != previousHistoryCount {
             overlayHistoryScrollOffset = 0
         }
+    }
+
+    func deleteTranscriptSession(id: UUID) {
+        transcriptSessions.removeAll { $0.id == id }
+        if activeTranscriptSessionID == id {
+            if sessionState == .running,
+               let transcriptInputLanguageID,
+               let transcriptOutputLanguageID {
+                let session = TranscriptSession(
+                    id: UUID(),
+                    startedAt: Date(),
+                    endedAt: nil,
+                    title: nil,
+                    sourceLanguageID: transcriptInputLanguageID,
+                    targetLanguageID: transcriptOutputLanguageID,
+                    entries: []
+                )
+                activeTranscriptSessionID = session.id
+                transcriptSessions.append(session)
+                transcriptEntries = []
+            } else {
+                activeTranscriptSessionID = transcriptSessions.last?.id
+                transcriptEntries = transcriptSessions.last?.entries ?? []
+                transcriptInputLanguageID = transcriptSessions.last?.sourceLanguageID
+                transcriptOutputLanguageID = transcriptSessions.last?.targetLanguageID
+            }
+        }
+        transcriptGeneration &+= 1
+        persistTranscript()
     }
 
     func clearOverlayHistory() {
@@ -2327,6 +2379,7 @@ final class AppModel: ObservableObject {
         if let index = transcriptEntries.firstIndex(where: { $0.id == captionID }),
            shouldReplaceCommittedTranslation(transcriptEntries[index].translatedText, for: captionID) {
             transcriptEntries[index].translatedText = translatedText
+            updateActiveTranscriptSessionEntries(transcriptEntries)
             didApplyTranslation = true
             persistTranscript()
         }
@@ -2560,6 +2613,18 @@ final class AppModel: ObservableObject {
     }
 
     private func resetTranscript(sourceLanguageID: String, targetLanguageID: String) {
+        let session = TranscriptSession(
+            id: UUID(),
+            startedAt: Date(),
+            endedAt: nil,
+            title: nil,
+            sourceLanguageID: sourceLanguageID,
+            targetLanguageID: targetLanguageID,
+            entries: []
+        )
+        activeTranscriptSessionID = session.id
+        transcriptSessions.append(session)
+        transcriptEntries = []
         transcriptInputLanguageID = sourceLanguageID
         transcriptOutputLanguageID = targetLanguageID
         transcriptGeneration &+= 1
@@ -2567,10 +2632,14 @@ final class AppModel: ObservableObject {
     }
 
     private func restoreTranscript(
+        sessions: [TranscriptSession],
+        activeSessionID: UUID?,
         entries: [TranscriptEntry],
         sourceLanguageID: String?,
         targetLanguageID: String?
     ) {
+        transcriptSessions = sessions
+        activeTranscriptSessionID = activeSessionID
         transcriptEntries = entries
         transcriptInputLanguageID = sourceLanguageID
         transcriptOutputLanguageID = targetLanguageID
@@ -2595,6 +2664,7 @@ final class AppModel: ObservableObject {
             transcriptEntries.append(entry)
         }
         trimTranscriptIfNeeded()
+        updateActiveTranscriptSessionEntries(transcriptEntries)
         persistTranscript()
     }
 
@@ -2605,10 +2675,27 @@ final class AppModel: ObservableObject {
         transcriptGeneration &+= 1
     }
 
+    private func updateActiveTranscriptSessionEntries(_ entries: [TranscriptEntry]) {
+        guard let activeTranscriptSessionID else { return }
+        guard let index = transcriptSessions.firstIndex(where: { $0.id == activeTranscriptSessionID }) else { return }
+        transcriptSessions[index].entries = entries
+        transcriptSessions[index].endedAt = sessionState == .running ? nil : (transcriptSessions[index].endedAt ?? Date())
+    }
+
+    private func finishActiveTranscriptSessionIfNeeded() {
+        guard let activeTranscriptSessionID,
+              let index = transcriptSessions.firstIndex(where: { $0.id == activeTranscriptSessionID }) else {
+            return
+        }
+        transcriptSessions[index].endedAt = Date()
+        persistTranscript()
+    }
+
     private func persistTranscript() {
         transcriptStore.save(
             PersistedTranscript(
                 entries: transcriptEntries,
+                sessions: transcriptSessions,
                 sourceLanguageID: transcriptInputLanguageID,
                 targetLanguageID: transcriptOutputLanguageID
             )
@@ -2930,6 +3017,16 @@ struct TranscriptEntry: Identifiable, Equatable, Codable {
     let id: UUID
     var sourceText: String
     var translatedText: String
+}
+
+struct TranscriptSession: Identifiable, Equatable, Codable {
+    let id: UUID
+    var startedAt: Date
+    var endedAt: Date?
+    var title: String?
+    var sourceLanguageID: String?
+    var targetLanguageID: String?
+    var entries: [TranscriptEntry]
 }
 
 private enum LanguageResourcePreparationError: LocalizedError, AppLocalizableError {

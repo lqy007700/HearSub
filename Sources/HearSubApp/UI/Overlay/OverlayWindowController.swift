@@ -275,20 +275,7 @@ final class OverlayWindowController {
     }
 
     private func handleCloseButtonPress() {
-        if geniePhase == .showing {
-            cancelGenieAnimation()
-        }
-
-        if panelsShown {
-            captureHideSnapshotIfNeeded(newVisible: false, newState: nil)
-            panelsShown = false
-            stopMouseTracking()
-            stopSourceWindowTracking()
-            interactionState.updatePassThroughBubble(nil)
-            animateGenieHide()
-        }
-
-        model.stopSession()
+        model.toggleOverlayVisibility()
     }
 
     private func scheduleWindowSync() {

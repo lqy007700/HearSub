@@ -49,14 +49,60 @@ final class TranscriptStore {
 
 struct PersistedTranscript: Codable, Equatable {
     var entries: [TranscriptEntry]
+    var sessions: [TranscriptSession]
     var sourceLanguageID: String?
     var targetLanguageID: String?
 
     static let empty = PersistedTranscript(
         entries: [],
+        sessions: [],
         sourceLanguageID: nil,
         targetLanguageID: nil
     )
+
+    private enum CodingKeys: String, CodingKey {
+        case entries
+        case sessions
+        case sourceLanguageID
+        case targetLanguageID
+    }
+
+    init(
+        entries: [TranscriptEntry],
+        sessions: [TranscriptSession],
+        sourceLanguageID: String?,
+        targetLanguageID: String?
+    ) {
+        self.entries = entries
+        self.sessions = sessions
+        self.sourceLanguageID = sourceLanguageID
+        self.targetLanguageID = targetLanguageID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedSessions = try container.decodeIfPresent([TranscriptSession].self, forKey: .sessions) ?? []
+        let decodedEntries = try container.decodeIfPresent([TranscriptEntry].self, forKey: .entries) ?? []
+        sourceLanguageID = try container.decodeIfPresent(String.self, forKey: .sourceLanguageID)
+        targetLanguageID = try container.decodeIfPresent(String.self, forKey: .targetLanguageID)
+
+        if decodedSessions.isEmpty, decodedEntries.isEmpty == false {
+            sessions = [
+                TranscriptSession(
+                    id: UUID(),
+                    startedAt: Date.distantPast,
+                    endedAt: nil,
+                    title: nil,
+                    sourceLanguageID: sourceLanguageID,
+                    targetLanguageID: targetLanguageID,
+                    entries: decodedEntries
+                )
+            ]
+        } else {
+            sessions = decodedSessions
+        }
+        entries = sessions.last?.entries ?? decodedEntries
+    }
 }
 
 private extension JSONEncoder {
