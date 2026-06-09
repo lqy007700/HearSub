@@ -49,7 +49,6 @@ final class AppSettingsTests: XCTestCase {
             overlayStyle: .default,
             subtitleMode: .balanced,
             subtitleDisplayMode: .both,
-            glossary: ["CEO": "Chief Executive Officer"],
             translationProvider: .openAICompatible,
             openAICompatibleTranslation: OpenAICompatibleTranslationSettings(
                 baseURL: "https://api.example.com",
@@ -71,7 +70,6 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(decoded.inputLanguageID, "en")
         XCTAssertEqual(decoded.outputLanguageID, "ja")
         XCTAssertEqual(decoded.interfaceLanguageID, "en")
-        XCTAssertEqual(decoded.glossary, ["CEO": "Chief Executive Officer"])
         XCTAssertEqual(decoded.translationProvider, .openAICompatible)
         XCTAssertEqual(
             decoded.openAICompatibleTranslation,

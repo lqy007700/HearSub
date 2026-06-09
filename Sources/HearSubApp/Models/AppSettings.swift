@@ -30,7 +30,6 @@ struct AppSettings: Codable {
     var overlayStyle: OverlayStyle
     var subtitleMode: SubtitleMode
     var subtitleDisplayMode: SubtitleDisplayMode
-    var glossary: [String: String]
     var translationProvider: TranslationProvider
     var openAICompatibleTranslation: OpenAICompatibleTranslationSettings
     var stopsSessionWhenHidingOverlay: Bool
@@ -47,7 +46,6 @@ struct AppSettings: Codable {
         overlayStyle: .default,
         subtitleMode: .balanced,
         subtitleDisplayMode: .both,
-        glossary: [:],
         translationProvider: .openAICompatible,
         openAICompatibleTranslation: .default,
         stopsSessionWhenHidingOverlay: false,
@@ -76,8 +74,6 @@ struct AppSettings: Codable {
             ?? AppSettings.default.subtitleMode
         subtitleDisplayMode = (try? c.decodeIfPresent(SubtitleDisplayMode.self, forKey: .subtitleDisplayMode))
             ?? AppSettings.default.subtitleDisplayMode
-        glossary = (try? c.decodeIfPresent([String: String].self, forKey: .glossary))
-            ?? AppSettings.default.glossary
         translationProvider = (try? c.decodeIfPresent(TranslationProvider.self, forKey: .translationProvider))
             ?? AppSettings.default.translationProvider
         openAICompatibleTranslation = (
@@ -103,7 +99,6 @@ struct AppSettings: Codable {
         overlayStyle: OverlayStyle,
         subtitleMode: SubtitleMode,
         subtitleDisplayMode: SubtitleDisplayMode,
-        glossary: [String: String],
         translationProvider: TranslationProvider = .apple,
         openAICompatibleTranslation: OpenAICompatibleTranslationSettings = .default,
         stopsSessionWhenHidingOverlay: Bool = false,
@@ -119,7 +114,6 @@ struct AppSettings: Codable {
         self.overlayStyle     = overlayStyle
         self.subtitleMode     = subtitleMode
         self.subtitleDisplayMode = subtitleDisplayMode
-        self.glossary         = glossary
         self.translationProvider = translationProvider
         self.openAICompatibleTranslation = openAICompatibleTranslation
         self.stopsSessionWhenHidingOverlay = stopsSessionWhenHidingOverlay

@@ -437,13 +437,6 @@ struct SettingsView: View {
         )
     }
 
-    private var translationProviderBinding: Binding<TranslationProvider> {
-        Binding(
-            get: { model.translationProvider },
-            set: { model.translationProvider = $0 }
-        )
-    }
-
     private var openAICompatibleBaseURLBinding: Binding<String> {
         Binding(
             get: { model.openAICompatibleTranslation.baseURL },

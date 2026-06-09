@@ -38,6 +38,5 @@ struct CommittedSegment: Equatable, Sendable {
     var translatedAtMs: Int?
     var sourceRevisionCount: Int
     var translationRevisionCount: Int
-    var glossaryHits: [String]
     var displayDurationMs: Int
 }

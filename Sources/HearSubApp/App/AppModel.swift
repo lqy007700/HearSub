@@ -17,7 +17,6 @@ final class AppModel: ObservableObject {
     private let transcriptStore: TranscriptStore
     private let sourceCatalogService: SourceCatalogService
     private let openAICompatibleTranslationService = OpenAICompatibleTranslationService()
-    private let glossaryService = GlossaryService()
     private let entityCache = EntityCache()
     private let speedMonitor = SpeedMonitor()
     private var liveTranscriptionSession: LiveTranscriptionSession?
@@ -164,12 +163,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    @Published var glossary: [String: String] {
-        didSet {
-            persistSettings()
-        }
-    }
-
     @Published var translationProvider: TranslationProvider {
         didSet {
             guard oldValue != translationProvider else { return }
@@ -239,7 +232,6 @@ final class AppModel: ObservableObject {
         self.overlayStyle = normalizedOverlayStyle
         self.subtitleMode = settings.subtitleMode
         self.subtitleDisplayMode = settings.subtitleDisplayMode
-        self.glossary = settings.glossary
         self.translationProvider = .openAICompatible
         self.openAICompatibleTranslation = settings.openAICompatibleTranslation
         self.stopsSessionWhenHidingOverlay = settings.stopsSessionWhenHidingOverlay
@@ -820,7 +812,6 @@ final class AppModel: ObservableObject {
             overlayStyle: overlayStyle,
             subtitleMode: subtitleMode,
             subtitleDisplayMode: subtitleDisplayMode,
-            glossary: glossary,
             translationProvider: translationProvider,
             openAICompatibleTranslation: openAICompatibleTranslation,
             stopsSessionWhenHidingOverlay: stopsSessionWhenHidingOverlay,
@@ -946,7 +937,6 @@ final class AppModel: ObservableObject {
                     "Hello",
                     from: "en",
                     to: self.outputLanguageID,
-                    glossary: [:],
                     settings: settings
                 )
                 self.openAICompatibleConnectionTestSucceeded = true
@@ -1471,15 +1461,14 @@ final class AppModel: ObservableObject {
                   activeDraftSourceLanguageID == sourceLanguageID,
                   activeDraftTargetLanguageID == targetLanguageID else { return }
             if let translated {
-                let resolvedTranslation = glossaryService.apply(to: translated, glossary: glossary)
                 if shouldTreatAsMissingTranslation(
-                    resolvedTranslation,
+                    translated,
                     sourceText: text,
                     sourceLanguageID: sourceLanguageID,
                     targetLanguageID: targetLanguageID
                 ) == false {
                     overlayState?.setDraftTranslation(
-                        resolvedTranslation,
+                        translated,
                         sourceText: text,
                         promotionID: promotionID
                     )
@@ -1770,34 +1759,6 @@ final class AppModel: ObservableObject {
             sourceLanguageID: activeDraftSourceLanguageID,
             targetLanguageID: activeDraftTargetLanguageID
         )
-    }
-
-    var transcriptSourceLanguageID: String {
-        transcriptInputLanguageID ?? inputLanguageID
-    }
-
-    var transcriptTargetLanguageID: String {
-        transcriptOutputLanguageID ?? outputLanguageID
-    }
-
-    var hasTranscript: Bool {
-        transcriptSessions.contains { $0.entries.isEmpty == false }
-    }
-
-    func transcriptText(isTranslation: Bool) -> String {
-        transcriptEntries
-            .map { isTranslation ? $0.translatedText : $0.sourceText }
-            .filter { $0.isEmpty == false }
-            .joined(separator: "\n")
-    }
-
-    func clearTranscript() {
-        transcriptSessions.removeAll()
-        transcriptEntries.removeAll()
-        activeTranscriptSessionID = nil
-        transcriptGeneration &+= 1
-        persistTranscript()
-        clearOverlayHistory()
     }
 
     func deleteTranscriptEntry(id: UUID, from sessionID: UUID? = nil) {
@@ -2507,7 +2468,6 @@ final class AppModel: ObservableObject {
                 text,
                 from: sourceLanguageID,
                 to: targetLanguageID,
-                glossary: [:],
                 settings: openAICompatibleTranslation
             )
         }

@@ -73,7 +73,6 @@ final class OpenAICompatibleTranslationService: Sendable {
         _ text: String,
         from sourceLanguageID: String,
         to targetLanguageID: String,
-        glossary: [String: String],
         settings: OpenAICompatibleTranslationSettings
     ) async throws -> String {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -100,8 +99,7 @@ final class OpenAICompatibleTranslationService: Sendable {
                     content: userPrompt(
                         text: trimmedText,
                         sourceLanguageID: sourceLanguageID,
-                        targetLanguageID: targetLanguageID,
-                        glossary: glossary
+                        targetLanguageID: targetLanguageID
                     )
                 )
             ],
@@ -139,30 +137,12 @@ final class OpenAICompatibleTranslationService: Sendable {
     private func userPrompt(
         text: String,
         sourceLanguageID: String,
-        targetLanguageID: String,
-        glossary: [String: String]
+        targetLanguageID: String
     ) -> String {
         var lines = [
             "Source language: \(sourceLanguageID)",
             "Target language: \(targetLanguageID)",
         ]
-
-        let glossaryLines = glossary
-            .map { key, value in
-                (
-                    key.trimmingCharacters(in: .whitespacesAndNewlines),
-                    value.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-            }
-            .filter { $0.0.isEmpty == false && $0.1.isEmpty == false }
-            .sorted { lhs, rhs in
-                lhs.0.localizedCaseInsensitiveCompare(rhs.0) == .orderedAscending
-            }
-
-        if glossaryLines.isEmpty == false {
-            lines.append("Glossary:")
-            lines.append(contentsOf: glossaryLines.map { "\($0.0) => \($0.1)" })
-        }
 
         lines.append("Subtitle:")
         lines.append(text)
