@@ -13,7 +13,10 @@ enum AppTextKey: String {
     case general
     case settings
     case usage
+    case transcription
+    case subtitles
     case appearance
+    case advanced
     case sessionState
     case status
     case interfaceLanguage
@@ -324,7 +327,10 @@ enum AppLocalization {
             "general": "General",
             "settings": "Settings",
             "usage": "Use",
+            "transcription": "Transcription",
+            "subtitles": "Subtitles",
             "appearance": "Appearance",
+            "advanced": "Advanced",
             "sessionState": "Session State",
             "status": "Status",
             "interfaceLanguage": "Interface Language",
@@ -515,7 +521,10 @@ enum AppLocalization {
             "general": "常规",
             "settings": "设置",
             "usage": "使用",
+            "transcription": "转写",
+            "subtitles": "字幕",
             "appearance": "外观",
+            "advanced": "高级",
             "sessionState": "会话状态",
             "status": "状态",
             "interfaceLanguage": "界面语言",

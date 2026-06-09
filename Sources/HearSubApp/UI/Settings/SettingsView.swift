@@ -15,15 +15,17 @@ struct SettingsView: View {
             headerBar
             Divider()
             TabView {
-                usageTab
-                    .tabItem { Label(model.localized(.usage), systemImage: "slider.horizontal.3") }
+                transcriptionTab
+                    .tabItem { Label(model.localized(.transcription), systemImage: "waveform") }
                 translationTab
                     .tabItem { Label(model.localized(.translation), systemImage: "captions.bubble") }
-                appearanceTab
-                    .tabItem { Label(model.localized(.appearance), systemImage: "paintpalette") }
+                subtitlesTab
+                    .tabItem { Label(model.localized(.subtitles), systemImage: "text.bubble") }
+                advancedTab
+                    .tabItem { Label(model.localized(.advanced), systemImage: "gearshape") }
             }
         }
-        .frame(minWidth: 520, minHeight: 480)
+        .frame(minWidth: 620, minHeight: 500)
         .environment(\.locale, model.interfaceLocale)
         .hearSubTranslationHost(model: model)
         .onChange(of: model.sessionState) { newState in
@@ -38,7 +40,7 @@ struct SettingsView: View {
     private var headerBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.localized(.settings))
+                Text("HearSub")
                     .font(.headline)
                 HStack(spacing: 6) {
                     Circle()
@@ -92,25 +94,11 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Usage Tab
+    // MARK: - Transcription Tab
 
-    private var usageTab: some View {
+    private var transcriptionTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                settingsCard {
-                    sectionHeader(model.localized(.usage), icon: "slider.horizontal.3")
-                    settingsRow(model.localized(.sessionState)) {
-                        Text(model.sessionBadgeText)
-                            .foregroundStyle(.secondary)
-                    }
-                    Divider()
-                    SettingsControlRow(label: model.localized(.interfaceLanguage)) {
-                        CommonLanguageMenuPicker(
-                            interfaceLanguageID: model.resolvedInterfaceLanguageID,
-                            selection: model.interfaceLanguageSelectionBinding
-                        )
-                    }
-                }
                 settingsCard {
                     sectionHeader(model.localized(.inputSource), icon: "mic.fill")
                     SettingsControlRow(label: model.localized(.selectedSource)) {
@@ -171,60 +159,6 @@ struct SettingsView: View {
                         )
                     }
                 }
-                settingsCard {
-                    sectionHeader(model.localized(.updates), icon: "arrow.triangle.2.circlepath")
-                    settingsRow(model.localized(.openAtLogin)) {
-                        Toggle("", isOn: launchAtLoginBinding)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
-                    Divider()
-                    settingsRow(model.localized(.checkForUpdatesAutomatically)) {
-                        Toggle("", isOn: $updaterService.automaticallyChecksForUpdates)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
-                    if launchAtLoginService.requiresApproval {
-                        Text(model.localized(.enableAtLoginInSystemSettings))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            Spacer()
-                            Button {
-                                launchAtLoginService.openLoginItems()
-                            } label: {
-                                Label(model.localized(.openLoginItems), systemImage: "gearshape")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                    if let updateErrorMessage = launchAtLoginService.updateErrorMessage {
-                        Text(model.localized(.launchAtLoginUpdateFailedFormat, updateErrorMessage))
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    HStack {
-                        Spacer()
-                        Button {
-                            updaterService.checkForUpdates()
-                        } label: {
-                            Label(model.localized(.checkForUpdates), systemImage: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                VersionLink(
-                    versionText: model.appVersionDisplayText,
-                    repositoryURL: model.appRepositoryURL,
-                    font: .caption.monospacedDigit()
-                )
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(20)
         }
@@ -311,14 +245,15 @@ struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                glossaryCard
             }
             .padding(20)
         }
     }
 
-    // MARK: - Appearance Tab
+    // MARK: - Subtitles Tab
 
-    private var appearanceTab: some View {
+    private var subtitlesTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
@@ -369,52 +304,125 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Glossary Tab
+    // MARK: - Advanced Tab
 
-    private var glossaryTab: some View {
+    private var advancedTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
-                    sectionHeader(model.localized(.glossary), icon: "text.book.closed")
-                    if model.glossary.isEmpty {
-                        Text(model.localized(.glossaryEmpty))
+                    sectionHeader(model.localized(.general), icon: "gearshape")
+                    settingsRow(model.localized(.sessionState)) {
+                        Text(model.sessionBadgeText)
                             .foregroundStyle(.secondary)
-                            .font(.caption)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 8)
-                    } else {
-                        ForEach(Array(model.glossary.keys.sorted()), id: \.self) { key in
-                            HStack {
-                                Text(key)
-                                    .font(.callout)
-                                Image(systemName: "arrow.right")
-                                    .foregroundStyle(.tertiary)
-                                    .font(.caption2)
-                                Text(model.glossary[key] ?? "")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button {
-                                    model.glossary.removeValue(forKey: key)
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundStyle(.red.opacity(0.8))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            Divider()
-                        }
                     }
-                    GlossaryAddRow(
-                        sourcePlaceholder: model.localized(.sourceTerm),
-                        targetPlaceholder: model.localized(.targetTerm)
-                    ) { source, target in
-                        guard !source.isEmpty, !target.isEmpty else { return }
-                        model.glossary[source] = target
+                    Divider()
+                    SettingsControlRow(label: model.localized(.interfaceLanguage)) {
+                        CommonLanguageMenuPicker(
+                            interfaceLanguageID: model.resolvedInterfaceLanguageID,
+                            selection: model.interfaceLanguageSelectionBinding
+                        )
                     }
                 }
+                settingsCard {
+                    sectionHeader(model.localized(.updates), icon: "arrow.triangle.2.circlepath")
+                    settingsRow(model.localized(.openAtLogin)) {
+                        Toggle("", isOn: launchAtLoginBinding)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                    Divider()
+                    settingsRow(model.localized(.checkForUpdatesAutomatically)) {
+                        Toggle("", isOn: $updaterService.automaticallyChecksForUpdates)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                    if launchAtLoginService.requiresApproval {
+                        Text(model.localized(.enableAtLoginInSystemSettings))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Spacer()
+                            Button {
+                                launchAtLoginService.openLoginItems()
+                            } label: {
+                                Label(model.localized(.openLoginItems), systemImage: "gearshape")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let updateErrorMessage = launchAtLoginService.updateErrorMessage {
+                        Text(model.localized(.launchAtLoginUpdateFailedFormat, updateErrorMessage))
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack {
+                        Spacer()
+                        Button {
+                            updaterService.checkForUpdates()
+                        } label: {
+                            Label(model.localized(.checkForUpdates), systemImage: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                VersionLink(
+                    versionText: model.appVersionDisplayText,
+                    repositoryURL: model.appRepositoryURL,
+                    font: .caption.monospacedDigit()
+                )
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(20)
+        }
+    }
+
+    // MARK: - Glossary
+
+    private var glossaryCard: some View {
+        settingsCard {
+            sectionHeader(model.localized(.glossary), icon: "text.book.closed")
+            if model.glossary.isEmpty {
+                Text(model.localized(.glossaryEmpty))
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(Array(model.glossary.keys.sorted()), id: \.self) { key in
+                    HStack {
+                        Text(key)
+                            .font(.callout)
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.tertiary)
+                            .font(.caption2)
+                        Text(model.glossary[key] ?? "")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            model.glossary.removeValue(forKey: key)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.red.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Divider()
+                }
+            }
+            GlossaryAddRow(
+                sourcePlaceholder: model.localized(.sourceTerm),
+                targetPlaceholder: model.localized(.targetTerm)
+            ) { source, target in
+                guard !source.isEmpty, !target.isEmpty else { return }
+                model.glossary[source] = target
+            }
         }
     }
 

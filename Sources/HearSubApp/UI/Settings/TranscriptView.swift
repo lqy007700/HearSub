@@ -285,11 +285,11 @@ struct TranscriptView: View {
             .disabled(displayEntries.isEmpty)
 
             Button(model.localized(.clear)) {
-                confirmClearTranscript()
+                confirmClearSelectedSession()
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
-            .disabled(model.hasTranscript == false)
+            .disabled(selectedSession == nil || displayEntries.isEmpty)
 
         }
         .padding(.horizontal, 20)
@@ -425,7 +425,8 @@ struct TranscriptView: View {
         }
     }
 
-    private func confirmClearTranscript() {
+    private func confirmClearSelectedSession() {
+        guard let selectedSession else { return }
         let alert = NSAlert()
         alert.messageText = model.localized(.clearTranscriptConfirmation)
         alert.addButton(withTitle: model.localized(.clear))
@@ -436,6 +437,6 @@ struct TranscriptView: View {
             return
         }
 
-        model.clearTranscript()
+        model.clearTranscriptSession(id: selectedSession.id)
     }
 }

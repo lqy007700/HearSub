@@ -1791,6 +1791,24 @@ final class AppModel: ObservableObject {
         clearOverlayHistory()
     }
 
+    func clearTranscriptSession(id: UUID) {
+        guard let sessionIndex = transcriptSessions.firstIndex(where: { $0.id == id }) else { return }
+        let clearedEntryIDs = Set(transcriptSessions[sessionIndex].entries.map(\.id))
+        transcriptSessions[sessionIndex].entries.removeAll()
+        if activeTranscriptSessionID == id {
+            transcriptEntries.removeAll()
+        }
+        transcriptGeneration &+= 1
+        persistTranscript()
+
+        guard clearedEntryIDs.isEmpty == false else { return }
+        let previousHistoryCount = overlayState?.history.count ?? 0
+        overlayState?.history.removeAll { clearedEntryIDs.contains($0.id) }
+        if (overlayState?.history.count ?? 0) != previousHistoryCount {
+            overlayHistoryScrollOffset = 0
+        }
+    }
+
     func deleteTranscriptEntry(id: UUID, from sessionID: UUID? = nil) {
         let resolvedSessionID = sessionID ?? activeTranscriptSessionID
         guard let resolvedSessionID,
