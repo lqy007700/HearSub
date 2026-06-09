@@ -157,6 +157,7 @@ struct TranscriptView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(selectedSessionID == session.id ? Color.accentColor.opacity(0.14) : Color.clear)
