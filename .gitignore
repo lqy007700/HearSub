@@ -1,0 +1,32 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Local app artifacts
+*.log
+tmp/
+dist/
+.claude/worktrees/
+
+
+# Optional local notes under docs/ (GitHub Pages site lives in docs/)
+docs/notes/
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc
