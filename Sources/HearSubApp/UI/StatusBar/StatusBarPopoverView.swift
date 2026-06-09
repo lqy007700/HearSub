@@ -41,11 +41,6 @@ struct StatusBarPopoverView: View {
                 }
             }
             Spacer()
-            Text(model.sessionBadgeText)
-                .font(.caption2.weight(.medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(sessionBadgeBackground, in: Capsule())
         }
     }
 
@@ -60,6 +55,7 @@ struct StatusBarPopoverView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
+        .tint(sessionActionTint)
         .controlSize(.large)
         .disabled(model.isSessionButtonDisabled)
     }
@@ -150,18 +146,12 @@ struct StatusBarPopoverView: View {
         .background(.quinary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    // MARK: - Layout helpers
-
-    // MARK: - Bindings
-
-    private var sessionBadgeBackground: some ShapeStyle {
+    private var sessionActionTint: Color {
         switch model.sessionState {
-        case .idle: return AnyShapeStyle(Color.secondary.opacity(0.14))
-        case .running: return AnyShapeStyle(Color.green.opacity(0.18))
-        case .error: return AnyShapeStyle(Color.red.opacity(0.18))
+        case .idle: return .accentColor
+        case .running, .error: return .red
         }
     }
-
 }
 
 struct VersionLink: View {

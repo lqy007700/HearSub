@@ -63,6 +63,7 @@ struct SettingsView: View {
                 )
             }
             .buttonStyle(.borderedProminent)
+            .tint(sessionActionTint)
             .controlSize(.regular)
             .disabled(model.isSessionButtonDisabled)
             Button(model.isOverlayVisible ? model.localized(.hideOverlay) : model.localized(.showSubtitlePreview)) {
@@ -91,6 +92,13 @@ struct SettingsView: View {
         case .idle: return .secondary
         case .running: return .green
         case .error: return .red
+        }
+    }
+
+    private var sessionActionTint: Color {
+        switch model.sessionState {
+        case .idle: return .accentColor
+        case .running, .error: return .red
         }
     }
 
