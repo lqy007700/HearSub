@@ -2,7 +2,7 @@
   const header = document.querySelector(".site-header");
   const toggle = document.querySelector(".nav-toggle");
   const mobileNav = document.getElementById("mobile-nav");
-  const i18n = window.V2sI18n;
+  const i18n = window.HearSubI18n;
 
   function menuLabelKey(open) {
     return open ? "a11y.menuClose" : "a11y.menuOpen";

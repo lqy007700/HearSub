@@ -358,7 +358,7 @@
     });
   }
 
-  global.V2sI18n = {
+  global.HearSubI18n = {
     t,
     applyLang,
     initLangToggle,
