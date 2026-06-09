@@ -929,12 +929,12 @@ private struct OverlayTranslationHostModifier: ViewModifier {
 struct OverlayControlsChromeView: View {
     var body: some View {
         Capsule(style: .continuous)
-            .fill(.ultraThinMaterial)
+            .fill(Color.black.opacity(0.18))
             .overlay(
                 Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.16), radius: 6, y: 2)
+            .shadow(color: .black.opacity(0.10), radius: 5, y: 1)
             .frame(width: OverlayControlsLayout.stripSize.width, height: OverlayControlsLayout.stripSize.height)
     }
 }
@@ -945,6 +945,7 @@ struct OverlayMoveButtonView: View {
     let onMoveDragEnded: () -> Void
 
     @State private var isMoveDragging = false
+    @State private var isHovering = false
 
     var body: some View {
         OverlayDragHandle(
@@ -963,13 +964,17 @@ struct OverlayMoveButtonView: View {
             }
         )
         .frame(width: OverlayControlsLayout.controlSize, height: OverlayControlsLayout.controlSize)
-        .background(Circle().fill(Color(nsColor: .controlColor).opacity(0.82)))
+        .background(
+            Circle()
+                .fill(Color.white.opacity(isMoveDragging || isHovering ? 0.16 : 0.08))
+        )
         .overlay(
             Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                .font(.system(size: 8.5, weight: .semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .font(.system(size: 8, weight: .medium))
+                .foregroundColor(.white.opacity(isMoveDragging || isHovering ? 0.72 : 0.48))
                 .allowsHitTesting(false)
         )
+        .onHover { isHovering = $0 }
         .help("Drag")
     }
 }
@@ -977,18 +982,21 @@ struct OverlayMoveButtonView: View {
 struct OverlayCloseButtonView: View {
     @ObservedObject var model: AppModel
     var onClose: () -> Void = {}
+    @State private var isHovering = false
 
     var body: some View {
         Button { onClose() } label: {
             ZStack {
-                Circle().fill(Color(red: 1.0, green: 0.36, blue: 0.32))
+                Circle()
+                    .fill(isHovering ? Color(red: 1.0, green: 0.33, blue: 0.30).opacity(0.72) : Color.white.opacity(0.08))
                 Image(systemName: "xmark")
-                    .font(.system(size: 7.5, weight: .bold))
-                    .foregroundColor(Color(red: 0.44, green: 0.05, blue: 0.03).opacity(0.72))
+                    .font(.system(size: 7.5, weight: .semibold))
+                    .foregroundColor(isHovering ? Color(red: 0.40, green: 0.04, blue: 0.03).opacity(0.75) : .white.opacity(0.50))
             }
         }
         .buttonStyle(.plain)
         .frame(width: OverlayControlsLayout.controlSize, height: OverlayControlsLayout.controlSize)
+        .onHover { isHovering = $0 }
         .help(model.localized(.hideOverlay))
     }
 }
