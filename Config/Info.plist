@@ -23,7 +23,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/lqy007700/HearSub/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>c9L/6qNsTDZVevxERjyM4gwJ1n7nXjc7tMdjdQB4uvQ=</string>
+	<string>mhDL/BpHYA4tKC4dZU1Q0WuPGtTBlNJOI2Dt7wje63I=</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
