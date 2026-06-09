@@ -168,6 +168,13 @@ struct TranscriptView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                model.deleteTranscriptSession(id: session.id)
+            } label: {
+                Label(model.localized(.delete), systemImage: "trash")
+            }
+        }
     }
 
     @ViewBuilder
@@ -285,11 +292,11 @@ struct TranscriptView: View {
             .disabled(displayEntries.isEmpty)
 
             Button(model.localized(.clear)) {
-                confirmClearSelectedSession()
+                confirmDeleteSelectedSession()
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
-            .disabled(selectedSession == nil || displayEntries.isEmpty)
+            .disabled(selectedSession == nil)
 
         }
         .padding(.horizontal, 20)
@@ -425,7 +432,7 @@ struct TranscriptView: View {
         }
     }
 
-    private func confirmClearSelectedSession() {
+    private func confirmDeleteSelectedSession() {
         guard let selectedSession else { return }
         let alert = NSAlert()
         alert.messageText = model.localized(.clearTranscriptConfirmation)
@@ -437,6 +444,6 @@ struct TranscriptView: View {
             return
         }
 
-        model.clearTranscriptSession(id: selectedSession.id)
+        model.deleteTranscriptSession(id: selectedSession.id)
     }
 }
