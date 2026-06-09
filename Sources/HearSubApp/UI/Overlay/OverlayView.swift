@@ -57,8 +57,9 @@ struct OverlayView: View {
                 GeometryReader { proxy in
                     let isReviewingHistory = interactionState.historyScrollOffset > 0.5
                     let availableHistoryHeight = availableHistoryHeight(for: proxy.size.height, state: state)
+                    let displayHistory = historyExcludingCurrentCaption(from: state.history, state: state)
                     let visibleHistoryEntries = historyVisibleEntries(
-                        from: state.history,
+                        from: displayHistory,
                         availableHeight: availableHistoryHeight,
                         reviewMode: false
                     )
@@ -428,6 +429,19 @@ struct OverlayView: View {
         return Array(history[lowerBound..<upperBound])
     }
 
+    private func historyExcludingCurrentCaption(
+        from history: [OverlayHistoryEntry],
+        state: OverlayPreviewState
+    ) -> [OverlayHistoryEntry] {
+        guard hasCommittedCaption(state) else {
+            return history
+        }
+
+        return history.filter {
+            $0.translatedText != state.translatedText || $0.sourceText != state.sourceText
+        }
+    }
+
     private func availableHistoryHeight(for height: CGFloat, state: OverlayPreviewState) -> CGFloat {
         max(height - reservedFlowHeight(for: state), 0)
     }
@@ -454,9 +468,7 @@ struct OverlayView: View {
             captionEpoch: state.captionEpoch,
             translatedText: state.translatedText,
             sourceText: state.sourceText,
-            committedPromotionID: state.committedPromotionID,
-            draftPromotionID: state.draftPromotionID,
-            reservesCommittedSlot: shouldReserveCommittedSlot(for: state)
+            committedPromotionID: state.committedPromotionID
         )
     }
 
@@ -465,9 +477,7 @@ struct OverlayView: View {
         visibleHistoryEntries: [OverlayHistoryEntry]
     ) -> OverlayHistoryLayoutAnimationState {
         OverlayHistoryLayoutAnimationState(
-            historyIDs: visibleHistoryEntries.map(\.id),
-            reservesCommittedSlot: shouldReserveCommittedSlot(for: state),
-            draftPromotionID: state.draftPromotionID
+            historyIDs: visibleHistoryEntries.map(\.id)
         )
     }
 
@@ -508,12 +518,17 @@ struct OverlayView: View {
     }
 
     private func draftSlotHeight(for state: OverlayPreviewState) -> CGFloat {
-        max(lastDraftSlotHeight, estimatedDraftRowHeight(for: state)) + Self.draftBottomInset
+        let estimatedHeight = estimatedDraftRowHeight(for: state)
+        guard estimatedHeight > 0 else { return 0 }
+        return max(lastDraftSlotHeight, estimatedHeight) + Self.draftBottomInset
     }
 
     private func estimatedDraftRowHeight(for state: OverlayPreviewState) -> CGFloat {
+        let draftSourceText = state.draftSourceText ?? ""
+        guard draftSourceText.isEmpty == false else { return 0 }
+
         let currentDraftTranslation = state.visibleDraftTranslatedText(
-            for: state.draftSourceText ?? "",
+            for: draftSourceText,
             promotionID: state.draftPromotionID
         )
         let translatedHeight = showsTranslatedSubtitle && (
@@ -961,14 +976,10 @@ private struct OverlayFlowAnimationState: Equatable {
     let translatedText: String
     let sourceText: String
     let committedPromotionID: UUID?
-    let draftPromotionID: UUID?
-    let reservesCommittedSlot: Bool
 }
 
 private struct OverlayHistoryLayoutAnimationState: Equatable {
     let historyIDs: [UUID]
-    let reservesCommittedSlot: Bool
-    let draftPromotionID: UUID?
 }
 
 private struct DraftSlotHeightPreferenceKey: PreferenceKey {
@@ -1142,23 +1153,42 @@ struct OverlayHistoryScrollbarView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var interactionState: OverlayInteractionState
     var showTranscript: () -> Void = {}
+    @State private var isHovering = false
 
     var body: some View {
         GeometryReader { proxy in
             let trackHeight = max(proxy.size.height - (OverlayHistoryScrollbarLayout.verticalPadding * 2), 1)
             let metrics = scrollbarMetrics(trackHeight: trackHeight)
-            let opacity = metrics.canScroll ? 1.0 : 0.0
+            let isReviewing = interactionState.historyScrollOffset > 0.5
+            let isActive = isHovering || isReviewing
+            let opacity = metrics.canScroll ? (isActive ? 1.0 : 0.68) : 0.0
+            let trackWidth = isActive
+                ? OverlayHistoryScrollbarLayout.expandedTrackWidth
+                : OverlayHistoryScrollbarLayout.trackWidth
+            let thumbWidth = isActive
+                ? OverlayHistoryScrollbarLayout.expandedThumbWidth
+                : OverlayHistoryScrollbarLayout.thumbWidth
 
             ZStack(alignment: .top) {
+                Capsule(style: .continuous)
+                    .fill(Color.black.opacity(isActive ? 0.22 : 0.16))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(isActive ? 0.18 : 0.11), lineWidth: 0.7)
+                    )
+                    .frame(width: OverlayHistoryScrollbarLayout.touchRailWidth)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 Capsule()
-                    .fill(Color.white.opacity(0.10))
-                    .frame(width: OverlayHistoryScrollbarLayout.trackWidth)
+                    .fill(Color.white.opacity(isActive ? 0.24 : 0.16))
+                    .frame(width: trackWidth)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 Capsule()
-                    .fill(Color.white.opacity(0.64))
+                    .fill(Color.white.opacity(isActive ? 0.86 : 0.68))
+                    .shadow(color: .black.opacity(isActive ? 0.22 : 0.14), radius: 3, y: 1)
                     .frame(
-                        width: OverlayHistoryScrollbarLayout.thumbWidth,
+                        width: thumbWidth,
                         height: metrics.thumbHeight
                     )
                     .frame(maxWidth: .infinity, alignment: .top)
@@ -1169,14 +1199,17 @@ struct OverlayHistoryScrollbarView: View {
                     maxScrollOffset: metrics.maxScrollOffset,
                     thumbHeight: metrics.thumbHeight,
                     onOffsetChange: { interactionState.setHistoryScrollOffset($0) },
-                    onStepScroll: { interactionState.scrollHistory(by: $0) }
+                    onStepScroll: { interactionState.scrollHistory(by: $0) },
+                    onReset: { interactionState.setHistoryScrollOffset(0) }
                 )
             }
             .frame(height: trackHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .opacity(opacity)
             .allowsHitTesting(metrics.canScroll)
+            .onHover { isHovering = $0 }
             .animation(.easeOut(duration: 0.14), value: metrics.canScroll)
+            .animation(.easeOut(duration: 0.14), value: isActive)
             .transaction { transaction in
                 transaction.animation = nil
             }
@@ -1245,9 +1278,11 @@ enum OverlayControlsLayout {
 
 enum OverlayHistoryScrollbarLayout {
     static let panelWidth: CGFloat = 28
-    static let trackWidth: CGFloat = 5
-    static let thumbWidth: CGFloat = 8
+    static let touchRailWidth: CGFloat = 20
+    static let trackWidth: CGFloat = 6
+    static let thumbWidth: CGFloat = 9
     static let expandedTrackWidth: CGFloat = 8
+    static let expandedThumbWidth: CGFloat = 11
     static let contentSpacing: CGFloat = 10
     static let verticalPadding: CGFloat = 8
     static let buttonSpacing: CGFloat = 8
@@ -1271,6 +1306,7 @@ private struct OverlayHistoryScrollbarInputLayer: NSViewRepresentable {
     let thumbHeight: CGFloat
     let onOffsetChange: (CGFloat) -> Void
     let onStepScroll: (CGFloat) -> Void
+    let onReset: () -> Void
 
     func makeNSView(context: Context) -> OverlayHistoryScrollbarInputView {
         let view = OverlayHistoryScrollbarInputView()
@@ -1279,6 +1315,7 @@ private struct OverlayHistoryScrollbarInputLayer: NSViewRepresentable {
         view.thumbHeight = thumbHeight
         view.onOffsetChange = onOffsetChange
         view.onStepScroll = onStepScroll
+        view.onReset = onReset
         return view
     }
 
@@ -1288,6 +1325,7 @@ private struct OverlayHistoryScrollbarInputLayer: NSViewRepresentable {
         nsView.thumbHeight = thumbHeight
         nsView.onOffsetChange = onOffsetChange
         nsView.onStepScroll = onStepScroll
+        nsView.onReset = onReset
     }
 }
 
@@ -1297,12 +1335,18 @@ final class OverlayHistoryScrollbarInputView: NSView {
     var thumbHeight: CGFloat = OverlayHistoryScrollbarLayout.minimumThumbHeight
     var onOffsetChange: ((CGFloat) -> Void)?
     var onStepScroll: ((CGFloat) -> Void)?
+    var onReset: (() -> Void)?
 
     private var isDraggingThumb = false
 
     override var isFlipped: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        if event.clickCount >= 2 {
+            onReset?()
+            return
+        }
+
         isDraggingThumb = true
         updateOffset(for: event)
     }

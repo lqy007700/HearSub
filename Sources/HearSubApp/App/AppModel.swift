@@ -2743,7 +2743,8 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            clearOverlayText()
+            capturePreviousCaption()
+            committedCaptionArchiveTask = nil
         }
     }
 
