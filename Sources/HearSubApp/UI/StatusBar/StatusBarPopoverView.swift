@@ -12,6 +12,7 @@ struct StatusBarPopoverView: View {
             headerSection
             configurationWarningSection
             sessionControls
+            languageResourceStatusSection
             sourceSection
             displaySection
             settingsSection
@@ -58,6 +59,13 @@ struct StatusBarPopoverView: View {
         .tint(sessionActionTint)
         .controlSize(.large)
         .disabled(model.isSessionButtonDisabled)
+    }
+
+    @ViewBuilder
+    private var languageResourceStatusSection: some View {
+        if model.visibleLanguageResourceStatuses.isEmpty == false {
+            LanguageResourceStatusListView(statuses: model.visibleLanguageResourceStatuses)
+        }
     }
 
     @ViewBuilder

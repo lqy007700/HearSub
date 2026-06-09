@@ -48,6 +48,7 @@ enum AppTextKey: String {
     case subtitleDisplayTranslatedOnly
     case translationBackend
     case appleTranslation
+    case appleTranslationHint
     case openAICompatibleTranslation
     case openAICompatibleBaseURL
     case openAICompatibleAPIKey
@@ -70,6 +71,9 @@ enum AppTextKey: String {
     case subtitleOverlay
     case stopWhenHidingOverlay
     case stopWhenHidingOverlayHint
+    case subtitleLayout
+    case subtitleLayoutSingleLine
+    case subtitleLayoutMultiLine
     case subtitleLineOrder
     case subtitleLineOrderSourceFirst
     case subtitleLineOrderTranslationFirst
@@ -77,6 +81,8 @@ enum AppTextKey: String {
     case outlineColor
     case attachToSource
     case subtitleColor
+    case translatedSubtitleColor
+    case sourceSubtitleColor
     case backgroundColor
     case resetColors
     case topInset
@@ -137,6 +143,9 @@ enum AppTextKey: String {
     case downloadingSpeechResources
     case translationNotSupportedPairOnMacOS
     case downloadingTranslationResources
+    case preparingAppleTranslationResources
+    case appleTranslationProgressUnavailable
+    case appleTranslationReady
     case waitingTranslationResourcesInstalling
     case manualTranslationDownloadDetail
     case speechResourcesNotSupportedOnMacOS
@@ -327,7 +336,7 @@ enum AppLocalization {
             "sessionState": "Session State",
             "status": "Status",
             "interfaceLanguage": "Interface Language",
-            "showSubtitlePreview": "Show Subtitle Preview",
+            "showSubtitlePreview": "Show Subtitles",
             "inputSource": "Input Source",
             "selectedSource": "Selected Source",
             "allSources": "All Sources",
@@ -357,6 +366,7 @@ enum AppLocalization {
             "subtitleDisplayTranslatedOnly": "Only show translated subtitle",
             "translationBackend": "Translation Backend",
             "appleTranslation": "Apple Translation",
+            "appleTranslationHint": "Use macOS on-device translation. The first run may download language resources.",
             "openAICompatibleTranslation": "OpenAI-Compatible",
             "openAICompatibleBaseURL": "Base URL",
             "openAICompatibleAPIKey": "API Key",
@@ -379,6 +389,9 @@ enum AppLocalization {
             "subtitleOverlay": "Subtitle Overlay",
             "stopWhenHidingOverlay": "Stop transcription when closing subtitles",
             "stopWhenHidingOverlayHint": "When enabled, the close button on the subtitle overlay stops the current session instead of only hiding subtitles.",
+            "subtitleLayout": "Subtitle Layout",
+            "subtitleLayoutSingleLine": "Single line",
+            "subtitleLayoutMultiLine": "Multi-line",
             "subtitleLineOrder": "Subtitle Order",
             "subtitleLineOrderSourceFirst": "Original above translation",
             "subtitleLineOrderTranslationFirst": "Translation above original",
@@ -386,6 +399,8 @@ enum AppLocalization {
             "outlineColor": "Outline Color",
             "attachToSource": "Attach to Source",
             "subtitleColor": "Subtitle Color",
+            "translatedSubtitleColor": "Translation Color",
+            "sourceSubtitleColor": "Original Color",
             "backgroundColor": "Background Color",
             "resetColors": "Reset Colors",
             "topInset": "Top Inset",
@@ -446,6 +461,9 @@ enum AppLocalization {
             "downloadingSpeechResources": "Downloading on-device speech recognition resources...",
             "translationNotSupportedPairOnMacOS": "Translation is not supported for this language pair on this macOS version.",
             "downloadingTranslationResources": "Downloading on-device translation resources...",
+            "preparingAppleTranslationResources": "Preparing Apple on-device translation",
+            "appleTranslationProgressUnavailable": "macOS is checking or downloading the required language package. Apple's Translation framework does not provide an exact percentage. HearSub will continue automatically when it is ready.",
+            "appleTranslationReady": "Apple on-device translation is enabled. macOS may prepare language packages automatically the first time a new language pair is used.",
             "waitingTranslationResourcesInstalling": "Waiting for translation resources to finish installing...",
             "manualTranslationDownloadDetail": "This translation download may still be in progress. macOS language packages can be large and may take longer than expected. Open macOS System Settings > General > Language & Region > Translation Languages to check the download progress and finish downloading this translation language if needed.",
             "speechResourcesNotSupportedOnMacOS": "Speech recognition resources are not supported for this language on this macOS version.",
@@ -516,7 +534,7 @@ enum AppLocalization {
             "sessionState": "会话状态",
             "status": "状态",
             "interfaceLanguage": "界面语言",
-            "showSubtitlePreview": "显示字幕预览",
+            "showSubtitlePreview": "显示字幕",
             "inputSource": "输入源",
             "selectedSource": "已选输入源",
             "allSources": "全部来源",
@@ -546,6 +564,7 @@ enum AppLocalization {
             "subtitleDisplayTranslatedOnly": "仅显示译文字幕",
             "translationBackend": "翻译后端",
             "appleTranslation": "Apple 翻译",
+            "appleTranslationHint": "使用 macOS 本地翻译。首次使用可能需要下载语言资源。",
             "openAICompatibleTranslation": "OpenAI 兼容",
             "openAICompatibleBaseURL": "接口地址",
             "openAICompatibleAPIKey": "API Key",
@@ -568,6 +587,9 @@ enum AppLocalization {
             "subtitleOverlay": "字幕浮层",
             "stopWhenHidingOverlay": "关闭字幕时停止转写",
             "stopWhenHidingOverlayHint": "开启后，点击字幕浮层的关闭按钮会停止当前会话，而不是只隐藏字幕。",
+            "subtitleLayout": "字幕布局",
+            "subtitleLayoutSingleLine": "一行字幕",
+            "subtitleLayoutMultiLine": "多行字幕",
             "subtitleLineOrder": "字幕顺序",
             "subtitleLineOrderSourceFirst": "原文在上，译文在下",
             "subtitleLineOrderTranslationFirst": "译文在上，原文在下",
@@ -575,6 +597,8 @@ enum AppLocalization {
             "outlineColor": "描边颜色",
             "attachToSource": "附着到源应用",
             "subtitleColor": "字幕颜色",
+            "translatedSubtitleColor": "译文颜色",
+            "sourceSubtitleColor": "原文颜色",
             "backgroundColor": "背景颜色",
             "resetColors": "重置颜色",
             "topInset": "顶部边距",
@@ -635,6 +659,9 @@ enum AppLocalization {
             "downloadingSpeechResources": "正在下载本地语音识别资源...",
             "translationNotSupportedPairOnMacOS": "当前 macOS 版本不支持此语言对的翻译。",
             "downloadingTranslationResources": "正在下载本地翻译资源...",
+            "preparingAppleTranslationResources": "正在准备 Apple 本地翻译",
+            "appleTranslationProgressUnavailable": "macOS 正在检查或下载所需语言包。Apple 翻译框架暂不提供精确百分比，准备完成后会自动继续。",
+            "appleTranslationReady": "Apple 本地翻译已启用。首次遇到新语言对时，macOS 可能会自动准备语言包。",
             "waitingTranslationResourcesInstalling": "正在等待翻译资源安装完成...",
             "manualTranslationDownloadDetail": "该翻译下载可能仍在进行中。macOS 的语言资源包通常较大，下载时间可能比预期更长。请打开 macOS 系统设置 > 通用 > 语言与地区 > 翻译语言，查看下载进度，并在需要时完成该翻译语言的下载。",
             "speechResourcesNotSupportedOnMacOS": "当前 macOS 版本不支持此语言的语音识别资源。",
@@ -701,7 +728,7 @@ enum AppLocalization {
             "sessionState": "Estado de la sesión",
             "status": "Estado",
             "interfaceLanguage": "Idioma de la interfaz",
-            "showSubtitlePreview": "Mostrar vista previa de subtítulos",
+            "showSubtitlePreview": "Mostrar subtítulos",
             "inputSource": "Fuente de entrada",
             "selectedSource": "Fuente seleccionada",
             "allSources": "Todas las fuentes",
@@ -855,7 +882,7 @@ enum AppLocalization {
             "sessionState": "Sitzungsstatus",
             "status": "Status",
             "interfaceLanguage": "Oberflächensprache",
-            "showSubtitlePreview": "Untertitelvorschau anzeigen",
+            "showSubtitlePreview": "Untertitel anzeigen",
             "inputSource": "Eingabequelle",
             "selectedSource": "Ausgewählte Quelle",
             "allSources": "Alle Quellen",
@@ -1009,7 +1036,7 @@ enum AppLocalization {
             "sessionState": "セッション状態",
             "status": "状態",
             "interfaceLanguage": "インターフェース言語",
-            "showSubtitlePreview": "字幕プレビューを表示",
+            "showSubtitlePreview": "字幕を表示",
             "inputSource": "入力ソース",
             "selectedSource": "選択中のソース",
             "allSources": "すべてのソース",
@@ -1163,7 +1190,7 @@ enum AppLocalization {
             "sessionState": "État de la session",
             "status": "Statut",
             "interfaceLanguage": "Langue de l'interface",
-            "showSubtitlePreview": "Afficher l'aperçu des sous-titres",
+            "showSubtitlePreview": "Afficher les sous-titres",
             "inputSource": "Source d'entrée",
             "selectedSource": "Source sélectionnée",
             "allSources": "Toutes les sources",
@@ -1317,7 +1344,7 @@ enum AppLocalization {
             "sessionState": "세션 상태",
             "status": "상태",
             "interfaceLanguage": "인터페이스 언어",
-            "showSubtitlePreview": "자막 미리보기 표시",
+            "showSubtitlePreview": "자막 표시",
             "inputSource": "입력 소스",
             "selectedSource": "선택한 소스",
             "allSources": "모든 소스",
@@ -1471,7 +1498,7 @@ enum AppLocalization {
             "sessionState": "حالة الجلسة",
             "status": "الحالة",
             "interfaceLanguage": "لغة الواجهة",
-            "showSubtitlePreview": "إظهار معاينة الترجمة",
+            "showSubtitlePreview": "إظهار الترجمة",
             "inputSource": "مصدر الإدخال",
             "selectedSource": "المصدر المحدد",
             "allSources": "كل المصادر",
@@ -1625,7 +1652,7 @@ enum AppLocalization {
             "sessionState": "Estado da sessão",
             "status": "Status",
             "interfaceLanguage": "Idioma da interface",
-            "showSubtitlePreview": "Mostrar prévia das legendas",
+            "showSubtitlePreview": "Mostrar legendas",
             "inputSource": "Fonte de entrada",
             "selectedSource": "Fonte selecionada",
             "allSources": "Todas as fontes",
@@ -1779,7 +1806,7 @@ enum AppLocalization {
             "sessionState": "Состояние сеанса",
             "status": "Статус",
             "interfaceLanguage": "Язык интерфейса",
-            "showSubtitlePreview": "Показать предпросмотр субтитров",
+            "showSubtitlePreview": "Показать субтитры",
             "inputSource": "Источник ввода",
             "selectedSource": "Выбранный источник",
             "allSources": "Все источники",

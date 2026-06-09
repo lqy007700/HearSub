@@ -80,4 +80,64 @@ final class AppSettingsTests: XCTestCase {
             )
         )
     }
+
+    func testOverlayStyleDecodesLegacySubtitleColorIntoSeparatedColors() throws {
+        let json = """
+        {
+          "targetDisplayID": null,
+          "topInset": 12,
+          "widthRatio": 0.82,
+          "minWidth": 720,
+          "maxWidth": 1440,
+          "backgroundOpacity": 0.32,
+          "subtitleColor": { "red": 0.2, "green": 0.4, "blue": 0.8, "alpha": 1.0 },
+          "backgroundColor": { "red": 0.0, "green": 0.0, "blue": 0.0, "alpha": 1.0 },
+          "showsTextOutline": false,
+          "textOutlineColor": { "red": 1.0, "green": 1.0, "blue": 1.0, "alpha": 1.0 },
+          "translatedFontSize": 24,
+          "sourceFontSize": 18,
+          "clickThrough": true,
+          "lineOrder": "sourceFirst",
+          "overlayScaleFactor": 1.0,
+          "attachToSource": false
+        }
+        """
+
+        let style = try JSONDecoder().decode(OverlayStyle.self, from: Data(json.utf8))
+
+        XCTAssertEqual(style.subtitleLayoutMode, .multiLine)
+        XCTAssertEqual(style.subtitleColor, OverlayColor(red: 0.2, green: 0.4, blue: 0.8))
+        XCTAssertEqual(style.translatedSubtitleColor, style.subtitleColor)
+        XCTAssertEqual(style.sourceSubtitleColor, style.subtitleColor)
+    }
+
+    func testOverlayStyleRoundTripPreservesLayoutModeAndSeparatedColors() throws {
+        let style = OverlayStyle(
+            targetDisplayID: nil,
+            topInset: 12,
+            widthRatio: 0.82,
+            minWidth: 720,
+            maxWidth: 1440,
+            backgroundOpacity: 0.32,
+            subtitleColor: .defaultSubtitle,
+            translatedSubtitleColor: OverlayColor(red: 0.9, green: 0.8, blue: 0.1),
+            sourceSubtitleColor: OverlayColor(red: 0.2, green: 0.7, blue: 0.9),
+            backgroundColor: .defaultBackground,
+            showsTextOutline: false,
+            textOutlineColor: .defaultTextOutline,
+            translatedFontSize: 24,
+            sourceFontSize: 18,
+            clickThrough: true,
+            lineOrder: .translationFirst,
+            subtitleLayoutMode: .singleLine
+        )
+
+        let data = try JSONEncoder().encode(style)
+        let decoded = try JSONDecoder().decode(OverlayStyle.self, from: data)
+
+        XCTAssertEqual(decoded.subtitleLayoutMode, .singleLine)
+        XCTAssertEqual(decoded.translatedSubtitleColor, OverlayColor(red: 0.9, green: 0.8, blue: 0.1))
+        XCTAssertEqual(decoded.sourceSubtitleColor, OverlayColor(red: 0.2, green: 0.7, blue: 0.9))
+        XCTAssertEqual(decoded.lineOrder, .translationFirst)
+    }
 }

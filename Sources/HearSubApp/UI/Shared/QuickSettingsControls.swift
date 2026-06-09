@@ -375,8 +375,8 @@ struct LanguageResourcesFooter: View {
             action: model.refreshLanguageResources
         )
 
-        if !model.languageResourceStatuses.isEmpty {
-            LanguageResourceStatusListView(statuses: model.languageResourceStatuses)
+        if !model.visibleLanguageResourceStatuses.isEmpty {
+            LanguageResourceStatusListView(statuses: model.visibleLanguageResourceStatuses)
         }
     }
 }

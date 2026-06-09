@@ -179,80 +179,132 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
                     sectionHeader(model.localized(.translationBackend), icon: "captions.bubble")
-                    Text(model.localized(.openAICompatibleTranslationHint))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    SettingsControlRow(label: model.localized(.openAICompatibleBaseURL)) {
-                        TextField("https://api.example.com", text: openAICompatibleBaseURLBinding)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 280)
+                    Picker("", selection: translationProviderBinding) {
+                        Text(model.localized(.appleTranslation))
+                            .tag(TranslationProvider.apple)
+                        Text(model.localized(.openAICompatibleTranslation))
+                            .tag(TranslationProvider.openAICompatible)
                     }
-                    SettingsControlRow(label: model.localized(.openAICompatibleAPIKey)) {
-                        SecureField("sk-...", text: openAICompatibleAPIKeyBinding)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 280)
-                    }
-                    SettingsControlRow(label: model.localized(.openAICompatibleModel)) {
-                        if model.openAICompatibleModelOptions.isEmpty {
-                            TextField("model-name", text: openAICompatibleModelBinding)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 280)
-                        } else {
-                            Picker("", selection: openAICompatibleModelBinding) {
-                                ForEach(model.openAICompatibleModelOptions, id: \.self) { modelID in
-                                    Text(modelID).tag(modelID)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 280)
-                        }
-                    }
-                    HStack {
-                        Spacer()
-                        Button {
-                            model.testOpenAICompatibleTranslationConnection()
-                        } label: {
-                            if model.isTestingOpenAICompatibleConnection {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label(model.localized(.testConnection), systemImage: "network")
-                                    .font(.caption)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .disabled(model.isTestingOpenAICompatibleConnection)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
 
-                        Button {
-                            model.refreshOpenAICompatibleModels()
-                        } label: {
-                            if model.isFetchingOpenAICompatibleModels {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label(model.localized(.refreshModels), systemImage: "arrow.clockwise")
-                                    .font(.caption)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .disabled(model.isFetchingOpenAICompatibleModels)
-                    }
-                    if let error = model.openAICompatibleModelFetchError {
-                        Text(error)
+                    if model.translationProvider == .openAICompatible {
+                        Text(model.localized(.openAICompatibleTranslationHint))
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if let message = model.openAICompatibleConnectionTestMessage {
-                        Text(message)
+                    } else {
+                        Text(model.localized(.appleTranslationHint))
                             .font(.caption)
-                            .foregroundStyle(model.openAICompatibleConnectionTestSucceeded == true ? .green : .red)
+                            .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .frame(minHeight: 92, alignment: .top)
+
+                settingsCard {
+                    if model.translationProvider == .openAICompatible {
+                        sectionHeader(model.localized(.openAICompatibleTranslation), icon: "network")
+                        SettingsControlRow(label: model.localized(.openAICompatibleBaseURL)) {
+                            TextField("https://api.example.com", text: openAICompatibleBaseURLBinding)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 280)
+                        }
+                        SettingsControlRow(label: model.localized(.openAICompatibleAPIKey)) {
+                            SecureField("sk-...", text: openAICompatibleAPIKeyBinding)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 280)
+                        }
+                        SettingsControlRow(label: model.localized(.openAICompatibleModel)) {
+                            if model.openAICompatibleModelOptions.isEmpty {
+                                TextField("model-name", text: openAICompatibleModelBinding)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 280)
+                            } else {
+                                Picker("", selection: openAICompatibleModelBinding) {
+                                    ForEach(model.openAICompatibleModelOptions, id: \.self) { modelID in
+                                        Text(modelID).tag(modelID)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 280)
+                            }
+                        }
+                        HStack {
+                            Spacer()
+                            Button {
+                                model.testOpenAICompatibleTranslationConnection()
+                            } label: {
+                                if model.isTestingOpenAICompatibleConnection {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Label(model.localized(.testConnection), systemImage: "network")
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .disabled(model.isTestingOpenAICompatibleConnection)
+
+                            Button {
+                                model.refreshOpenAICompatibleModels()
+                            } label: {
+                                if model.isFetchingOpenAICompatibleModels {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Label(model.localized(.refreshModels), systemImage: "arrow.clockwise")
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .disabled(model.isFetchingOpenAICompatibleModels)
+                        }
+                        if let error = model.openAICompatibleModelFetchError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let message = model.openAICompatibleConnectionTestMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(model.openAICompatibleConnectionTestSucceeded == true ? .green : .red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        sectionHeader(model.localized(.appleTranslation), icon: "translate")
+                        if translationResourceStatuses.isEmpty == false {
+                            LanguageResourceStatusListView(statuses: translationResourceStatuses)
+                        } else {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                Text(model.localized(.appleTranslationReady))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        HStack {
+                            Spacer()
+                            Button {
+                                model.refreshLanguageResources()
+                            } label: {
+                                Label(model.localized(.refreshLanguageResources), systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(minHeight: 190, alignment: .top)
             }
             .padding(20)
         }
@@ -265,6 +317,18 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
                     sectionHeader(model.localized(.subtitleOverlay), icon: "captions.bubble")
+                    settingsRow(model.localized(.subtitleLayout)) {
+                        Picker("", selection: overlayLayoutModeBinding) {
+                            ForEach(SubtitleLayoutMode.allCases) { mode in
+                                Text(mode.displayName(in: model.resolvedInterfaceLanguageID))
+                                    .tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 190)
+                    }
+                    Divider()
                     settingsRow(model.localized(.subtitleLineOrder)) {
                         Picker("", selection: overlayLineOrderBinding) {
                             Text(model.localized(.subtitleLineOrderSourceFirst))
@@ -289,8 +353,13 @@ struct SettingsView: View {
                 }
                 settingsCard {
                     sectionHeader(model.localized(.subtitleColor), icon: "paintpalette")
-                    settingsRow(model.localized(.subtitleColor)) {
-                        ColorPicker("", selection: subtitleColorBinding, supportsOpacity: false)
+                    settingsRow(model.localized(.translatedSubtitleColor)) {
+                        ColorPicker("", selection: translatedSubtitleColorBinding, supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                    Divider()
+                    settingsRow(model.localized(.sourceSubtitleColor)) {
+                        ColorPicker("", selection: sourceSubtitleColorBinding, supportsOpacity: false)
                             .labelsHidden()
                     }
                     Divider()
@@ -304,6 +373,8 @@ struct SettingsView: View {
                             Button {
                                 model.updateOverlayStyle { style in
                                     style.subtitleColor = .defaultSubtitle
+                                    style.translatedSubtitleColor = .defaultSubtitle
+                                    style.sourceSubtitleColor = .defaultSubtitle
                                     style.backgroundColor = .defaultBackground
                                 }
                             } label: {
@@ -460,6 +531,17 @@ struct SettingsView: View {
         )
     }
 
+    private var translationProviderBinding: Binding<TranslationProvider> {
+        Binding(
+            get: { model.translationProvider },
+            set: { model.translationProvider = $0 }
+        )
+    }
+
+    private var translationResourceStatuses: [LanguageResourceStatus] {
+        model.visibleLanguageResourceStatuses.filter { $0.kind == .translation }
+    }
+
     private var openAICompatibleAPIKeyBinding: Binding<String> {
         Binding(
             get: { model.openAICompatibleTranslation.apiKey },
@@ -482,12 +564,23 @@ struct SettingsView: View {
         )
     }
 
-    private var subtitleColorBinding: Binding<Color> {
+    private var translatedSubtitleColorBinding: Binding<Color> {
         Binding(
-            get: { model.overlayStyle.subtitleColor.color },
+            get: { model.overlayStyle.translatedSubtitleColor.color },
             set: { newColor in
                 model.updateOverlayStyle { style in
-                    style.subtitleColor = OverlayColor(color: newColor)
+                    style.translatedSubtitleColor = OverlayColor(color: newColor)
+                }
+            }
+        )
+    }
+
+    private var sourceSubtitleColorBinding: Binding<Color> {
+        Binding(
+            get: { model.overlayStyle.sourceSubtitleColor.color },
+            set: { newColor in
+                model.updateOverlayStyle { style in
+                    style.sourceSubtitleColor = OverlayColor(color: newColor)
                 }
             }
         )
@@ -514,6 +607,10 @@ struct SettingsView: View {
 
     private var overlayLineOrderBinding: Binding<SubtitleLineOrder> {
         overlayBinding(\.lineOrder)
+    }
+
+    private var overlayLayoutModeBinding: Binding<SubtitleLayoutMode> {
+        overlayBinding(\.subtitleLayoutMode)
     }
 
     @ViewBuilder private var selectedSourceLanguageRows: some View {
@@ -569,6 +666,8 @@ struct SettingsView: View {
 
     private var colorsUseDefaultValues: Bool {
         model.overlayStyle.subtitleColor == .defaultSubtitle
+            && model.overlayStyle.translatedSubtitleColor == .defaultSubtitle
+            && model.overlayStyle.sourceSubtitleColor == .defaultSubtitle
             && model.overlayStyle.backgroundColor == .defaultBackground
     }
 

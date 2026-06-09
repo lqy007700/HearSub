@@ -46,7 +46,7 @@ struct AppSettings: Codable {
         overlayStyle: .default,
         subtitleMode: .balanced,
         subtitleDisplayMode: .both,
-        translationProvider: .openAICompatible,
+        translationProvider: .apple,
         openAICompatibleTranslation: .default,
         stopsSessionWhenHidingOverlay: false,
         hasCompletedOnboarding: false
@@ -99,7 +99,7 @@ struct AppSettings: Codable {
         overlayStyle: OverlayStyle,
         subtitleMode: SubtitleMode,
         subtitleDisplayMode: SubtitleDisplayMode,
-        translationProvider: TranslationProvider = .apple,
+        translationProvider: TranslationProvider = .openAICompatible,
         openAICompatibleTranslation: OpenAICompatibleTranslationSettings = .default,
         stopsSessionWhenHidingOverlay: Bool = false,
         hasCompletedOnboarding: Bool = false

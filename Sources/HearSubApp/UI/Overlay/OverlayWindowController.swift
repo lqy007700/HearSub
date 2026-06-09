@@ -38,6 +38,7 @@ final class OverlayWindowController {
     private var lastSourceWindowFrame: NSRect?
     private var attachToSourceRefreshTask: Task<Void, Never>?
     private var lastAttachToSourceUsesHighLevel: Bool?
+    private var overlayChromeVisible = false
 
     // MARK: - Genie Animation State
     var trayIconRectProvider: (() -> NSRect?)?
@@ -209,6 +210,14 @@ final class OverlayWindowController {
 
     private var leftControlButtonPanels: [OverlayPanel] {
         [closeButtonPanel, moveButtonPanel]
+    }
+
+    private var companionPanels: [OverlayPanel] {
+        leftControlPanels + [scrollbarPanel, resizeButtonPanel, resetSizeButtonPanel]
+    }
+
+    private var usesSingleLineLayout: Bool {
+        model.overlayStyle.subtitleLayoutMode == .singleLine
     }
 
     private func configurePanel(_ panel: OverlayPanel, acceptsInput: Bool, level: NSWindow.Level) {
@@ -542,20 +551,22 @@ final class OverlayWindowController {
         panel.orderFront(nil)
         panel.orderFrontRegardless()
 
-        for controlPanel in leftControlPanels {
-            controlPanel.orderFront(nil)
-            controlPanel.orderFrontRegardless()
+        guard usesSingleLineLayout == false else {
+            companionPanels.forEach { $0.orderOut(nil) }
+            startMouseTrackingIfNeeded()
+            return
         }
-
-        scrollbarPanel.orderFront(nil)
-        scrollbarPanel.orderFrontRegardless()
+        companionPanels.forEach { $0.orderOut(nil) }
+        startMouseTrackingIfNeeded()
     }
 
     private func orderOutAllPanels() {
         panel.orderOut(nil)
-        for controlPanel in leftControlPanels + [scrollbarPanel] {
+        for controlPanel in companionPanels {
             controlPanel.orderOut(nil)
         }
+        overlayChromeVisible = false
+        interactionState.updateOverlayChromeVisible(false)
     }
 
     private func positionPanels(animated: Bool = false) {
@@ -620,23 +631,39 @@ final class OverlayWindowController {
                 context.duration = 0.2
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 panel.animator().setFrame(overlayFrame, display: true)
-                controlsChromePanel.animator().setFrame(chromeFrame, display: true)
-                for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
-                    controlPanel.animator().setFrame(frame, display: true)
+                if usesSingleLineLayout {
+                    controlsChromePanel.animator().setFrame(chromeFrame, display: true)
+                    for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                        controlPanel.animator().setFrame(frame, display: true)
+                    }
+                } else {
+                    controlsChromePanel.animator().setFrame(chromeFrame, display: true)
+                    for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                        controlPanel.animator().setFrame(frame, display: true)
+                    }
+                    scrollbarPanel.animator().setFrame(scrollbarFrame, display: true)
                 }
-                scrollbarPanel.animator().setFrame(scrollbarFrame, display: true)
             }
         } else {
             panel.setFrame(overlayFrame, display: true)
-            controlsChromePanel.setFrame(chromeFrame, display: true)
-            for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
-                controlPanel.setFrame(frame, display: true)
+            if usesSingleLineLayout {
+                controlsChromePanel.setFrame(chromeFrame, display: true)
+                for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                    controlPanel.setFrame(frame, display: true)
+                }
+            } else {
+                controlsChromePanel.setFrame(chromeFrame, display: true)
+                for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                    controlPanel.setFrame(frame, display: true)
+                }
+                scrollbarPanel.setFrame(scrollbarFrame, display: true)
             }
-            scrollbarPanel.setFrame(scrollbarFrame, display: true)
         }
 
+        updateOverlayChromeVisibility(animated: false)
+
         interactionState.updatePassThroughBubble(nil)
-        interactionState.updateScrollbarRevealProgress(1.0)
+        interactionState.updateScrollbarRevealProgress(0.0)
     }
 
     private func resolvedPanelWidth(in visibleFrame: NSRect, style: OverlayStyle) -> Double {
@@ -715,6 +742,23 @@ final class OverlayWindowController {
 
     private func defaultPanelHeight() -> Double {
         let style = model.overlayStyle
+
+        if usesSingleLineLayout {
+            let translatedHeight = style.scaledTranslatedFontSize + 18.0
+            let sourceHeight = style.scaledSourceFontSize + 16.0
+            let lineHeight: Double
+
+            switch model.subtitleDisplayMode {
+            case .both:
+                lineHeight = translatedHeight + sourceHeight + 8.0
+            case .originalOnly:
+                lineHeight = sourceHeight
+            case .translatedOnly:
+                lineHeight = translatedHeight
+            }
+
+            return min(max(lineHeight + 12.0, 56.0), 112.0)
+        }
 
         // Base: committed layer (translated + source + internal spacing)
         let base = style.scaledTranslatedFontSize + style.scaledSourceFontSize + 48.0
@@ -828,7 +872,7 @@ final class OverlayWindowController {
     }
 
     private func startMouseTrackingIfNeeded() {
-        stopMouseTracking()
+        restartMouseTracking(mode: .idle)
     }
 
     private func restartMouseTracking(mode: MouseTrackingMode) {
@@ -837,7 +881,7 @@ final class OverlayWindowController {
 
         let timer = Timer(timeInterval: mode.interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.updatePassThroughBubble()
+                self?.pollMouseTracking()
             }
         }
         mouseTrackingTimer = timer
@@ -850,8 +894,24 @@ final class OverlayWindowController {
         mouseTrackingMode = .idle
     }
 
-    private func updatePassThroughBubble() {
-        interactionState.updateScrollbarRevealProgress(0.0)
+    private func pollMouseTracking() {
+        let mouseLocation = NSEvent.mouseLocation
+        updateMouseTrackingMode(for: mouseLocation)
+        let shouldRevealChrome = shouldRevealOverlayChrome(for: mouseLocation)
+
+        updateOverlayChromeVisibility(
+            visible: shouldRevealChrome,
+            animated: true
+        )
+
+        if usesSingleLineLayout || shouldRevealChrome == false {
+            interactionState.updateScrollbarRevealProgress(0.0)
+        } else {
+            interactionState.updateScrollbarRevealProgress(
+                scrollbarRevealProgress(for: mouseLocation, scrollbarFrame: scrollbarPanel.frame)
+            )
+        }
+
         interactionState.updatePassThroughBubble(nil)
     }
 
@@ -879,7 +939,9 @@ final class OverlayWindowController {
     }
 
     private func overlayTrackingBounds() -> NSRect {
-        let trackedFrames = [panel.frame, scrollbarPanel.frame]
+        let trackedFrames = [panel.frame]
+            + leftControlPanels.map(\.frame)
+            + (usesSingleLineLayout ? [] : [scrollbarPanel.frame])
 
         guard var trackingBounds = trackedFrames.first else {
             return .zero
@@ -890,6 +952,69 @@ final class OverlayWindowController {
         }
 
         return trackingBounds
+    }
+
+    private func shouldRevealOverlayChrome(for mouseLocation: NSPoint) -> Bool {
+        guard model.isOverlayVisible,
+              model.overlayState != nil,
+              panelsShown else {
+            return false
+        }
+
+        let revealBounds = overlayTrackingBounds().insetBy(
+            dx: -Self.overlayChromeRevealPadding,
+            dy: -Self.overlayChromeRevealPadding
+        )
+        return revealBounds.contains(mouseLocation)
+    }
+
+    private func updateOverlayChromeVisibility(animated: Bool) {
+        updateOverlayChromeVisibility(visible: overlayChromeVisible, animated: animated)
+    }
+
+    private func updateOverlayChromeVisibility(visible: Bool, animated: Bool) {
+        guard overlayChromeVisible != visible || animated == false else { return }
+        overlayChromeVisible = visible
+        interactionState.updateOverlayChromeVisible(visible)
+
+        let panels = usesSingleLineLayout ? leftControlPanels : leftControlPanels + [scrollbarPanel]
+        let changes = {
+            for panel in panels {
+                panel.alphaValue = visible ? 1.0 : 0.0
+                if visible {
+                    panel.orderFront(nil)
+                    panel.orderFrontRegardless()
+                }
+            }
+        }
+
+        if visible {
+            changes()
+        } else if animated {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.12
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                for panel in panels {
+                    panel.animator().alphaValue = 0.0
+                }
+            }, completionHandler: { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self, self.overlayChromeVisible == false else {
+                        return
+                    }
+                    panels.forEach { $0.orderOut(nil) }
+                }
+            })
+        } else {
+            changes()
+            panels.forEach { $0.orderOut(nil) }
+        }
+
+        if usesSingleLineLayout {
+            scrollbarPanel.orderOut(nil)
+        }
+        resizeButtonPanel.orderOut(nil)
+        resetSizeButtonPanel.orderOut(nil)
     }
 
     private func scrollbarRevealProgress(for mouseLocation: NSPoint, scrollbarFrame: NSRect) -> CGFloat {
@@ -1173,6 +1298,7 @@ private extension OverlayWindowController {
     static let minimumOverlayHeight: Double = Double(OverlayControlsLayout.minimumOverlayHeight)
     static let attachToSourceRefreshDelayNanoseconds: UInt64 = 120_000_000
     static let mouseTrackingActivationPadding: CGFloat = 96
+    static let overlayChromeRevealPadding: CGFloat = 22
     static let passThroughBubbleDiameter: CGFloat = 118
     static let scrollbarRevealDistance: CGFloat = 42
     static let panelCollectionBehavior: NSWindow.CollectionBehavior = [

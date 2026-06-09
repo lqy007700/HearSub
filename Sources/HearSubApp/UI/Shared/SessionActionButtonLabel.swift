@@ -7,17 +7,22 @@ struct SessionActionButtonLabel: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            if showsActivity {
-                SessionWaitIndicator()
-                    .transition(.identity)
-            } else {
-                Image(systemName: symbolName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .accessibilityHidden(true)
-                    .transition(.identity)
+            ZStack {
+                if showsActivity {
+                    SessionWaitIndicator()
+                        .transition(.identity)
+                } else {
+                    Image(systemName: symbolName)
+                        .font(.system(size: 10, weight: .semibold))
+                        .accessibilityHidden(true)
+                        .transition(.identity)
+                }
             }
+            .frame(width: 13, height: 13)
             Text(title)
+                .frame(minWidth: 34)
         }
+        .frame(minWidth: 66)
     }
 }
 

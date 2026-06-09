@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     private let settingsStore: SettingsStore
     private let transcriptStore: TranscriptStore
     private let sourceCatalogService: SourceCatalogService
+    private let appleTranslationService = AppleTranslationService()
     private let openAICompatibleTranslationService = OpenAICompatibleTranslationService()
     private let entityCache = EntityCache()
     private let speedMonitor = SpeedMonitor()
@@ -33,6 +34,7 @@ final class AppModel: ObservableObject {
     private var draftClearTask: Task<Void, Never>?
     private var committedCaptionArchiveTask: Task<Void, Never>?
     private var languageResourcePreparationTask: Task<Void, Never>?
+    private var activeLanguageResourcePreparationID: UUID?
     private var activeDraftSourceLanguageID: String?
     private var activeDraftTargetLanguageID: String?
     private var lastDraftSourceID: String?
@@ -167,14 +169,12 @@ final class AppModel: ObservableObject {
         didSet {
             guard oldValue != translationProvider else { return }
             persistSettings()
+            cancelSelectedLanguageResourcePreparation(clearTransientStatuses: true)
             if translationProvider == .apple {
-                scheduleSelectedLanguageResourcePreparation(
-                    refreshTranslations: liveTranscriptionSession != nil,
-                    openSystemSettingsIfNeeded: false
-                )
+                if liveTranscriptionSession != nil {
+                    refreshCaptionTranslations()
+                }
             } else {
-                languageResourcePreparationTask?.cancel()
-                languageResourcePreparationTask = nil
                 languageResourceStatuses.removeAll { $0.kind == .translation }
                 if liveTranscriptionSession != nil {
                     refreshCaptionTranslations()
@@ -232,7 +232,7 @@ final class AppModel: ObservableObject {
         self.overlayStyle = normalizedOverlayStyle
         self.subtitleMode = settings.subtitleMode
         self.subtitleDisplayMode = settings.subtitleDisplayMode
-        self.translationProvider = .openAICompatible
+        self.translationProvider = settings.translationProvider
         self.openAICompatibleTranslation = settings.openAICompatibleTranslation
         self.stopsSessionWhenHidingOverlay = settings.stopsSessionWhenHidingOverlay
         self.hasCompletedOnboarding = settings.hasCompletedOnboarding
@@ -376,6 +376,31 @@ final class AppModel: ObservableObject {
         sessionState != .running && isPreparingSelectedLanguageResources
     }
 
+    var visibleLanguageResourceStatuses: [LanguageResourceStatus] {
+        if languageResourceStatuses.isEmpty == false {
+            return languageResourceStatuses
+        }
+
+        guard isPreparingSelectedLanguageResources else {
+            return []
+        }
+
+        return [
+            LanguageResourceStatus(
+                id: "resources:preparing",
+                kind: translationProvider == .apple ? .translation : .speech,
+                title: translationProvider == .apple
+                    ? localized(.preparingAppleTranslationResources)
+                    : localized(.checkingLanguageResources),
+                detail: translationProvider == .apple
+                    ? localized(.appleTranslationProgressUnavailable)
+                    : localized(.checkingLanguageResources),
+                progress: nil,
+                isError: false
+            )
+        ]
+    }
+
     var isSessionButtonDisabled: Bool {
         if sessionState == .running {
             return false
@@ -431,7 +456,7 @@ final class AppModel: ObservableObject {
             warnings.append(localized(.sourceNotConfigured))
         }
 
-        if showsTranslatedSubtitle {
+        if showsTranslatedSubtitle && translationProvider == .openAICompatible {
             if openAICompatibleTranslation.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 warnings.append(localized(.apiKeyNotConfigured))
             }
@@ -867,11 +892,30 @@ final class AppModel: ObservableObject {
     ) {
         let selectedSources = self.selectedSources
         guard selectedSources.isEmpty == false else {
-            return ([inputLanguageID], [])
+            let translationPairs = translationProvider == .apple && inputLanguageID != outputLanguageID
+                ? [LanguagePairRequirement(sourceLanguageID: inputLanguageID, targetLanguageID: outputLanguageID)]
+                : []
+            return ([inputLanguageID], translationPairs)
         }
 
         let speechLanguageIDs = Set(selectedSources.map { languageID(for: $0) }).sorted()
-        return (speechLanguageIDs, [])
+        let translationPairs = translationProvider == .apple
+            ? Array(Set(selectedSources.compactMap { source -> LanguagePairRequirement? in
+                let sourceLanguageID = languageID(for: source)
+                let targetLanguageID = outputLanguageIDForSource(source)
+                guard sourceLanguageID != targetLanguageID else { return nil }
+                return LanguagePairRequirement(
+                    sourceLanguageID: sourceLanguageID,
+                    targetLanguageID: targetLanguageID
+                )
+            })).sorted { lhs, rhs in
+                if lhs.sourceLanguageID == rhs.sourceLanguageID {
+                    return lhs.targetLanguageID < rhs.targetLanguageID
+                }
+                return lhs.sourceLanguageID < rhs.sourceLanguageID
+            }
+            : []
+        return (speechLanguageIDs, translationPairs)
     }
 
     func refreshLanguageResources() {
@@ -956,16 +1000,23 @@ final class AppModel: ObservableObject {
         }
 
         let requirements = selectedResourcePreparationRequirements()
+        let preparationID = UUID()
 
-        languageResourcePreparationTask?.cancel()
+        cancelSelectedLanguageResourcePreparation(clearTransientStatuses: false)
         languageResourceStatuses = []
+        activeLanguageResourcePreparationID = preparationID
 
         languageResourcePreparationTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
 
-            defer { self.languageResourcePreparationTask = nil }
+            defer {
+                if self.activeLanguageResourcePreparationID == preparationID {
+                    self.languageResourcePreparationTask = nil
+                    self.activeLanguageResourcePreparationID = nil
+                }
+            }
 
             await self.prepareSelectedLanguageResources(
                 speechLanguageIDs: requirements.speechLanguageIDs,
@@ -989,6 +1040,16 @@ final class AppModel: ObservableObject {
         }
 
         await languageResourcePreparationTask?.value
+    }
+
+    private func cancelSelectedLanguageResourcePreparation(clearTransientStatuses: Bool) {
+        languageResourcePreparationTask?.cancel()
+        languageResourcePreparationTask = nil
+        activeLanguageResourcePreparationID = nil
+
+        if clearTransientStatuses {
+            languageResourceStatuses.removeAll { $0.isError == false }
+        }
     }
 
     private var isPreparingSelectedLanguageResources: Bool {
@@ -1222,8 +1283,44 @@ final class AppModel: ObservableObject {
         from sourceLanguageID: String,
         to targetLanguageID: String
     ) async -> LanguageResourceSystemSettingsDestination? {
-        _ = sourceLanguageID
-        _ = targetLanguageID
+        let title = localized(
+            .translationTitleFormat,
+            languageName(for: sourceLanguageID),
+            languageName(for: targetLanguageID)
+        )
+        let statusID = "translation:\(sourceLanguageID):\(targetLanguageID)"
+
+        do {
+            upsertLanguageResourceStatus(
+                LanguageResourceStatus(
+                    id: statusID,
+                    kind: .translation,
+                    title: title,
+                    detail: localized(.appleTranslationProgressUnavailable),
+                    progress: nil,
+                    isError: false
+                )
+            )
+            try await prepareTranslationResourceWithTimeout(
+                from: sourceLanguageID,
+                to: targetLanguageID
+            )
+            removeLanguageResourceStatus(id: statusID)
+        } catch is CancellationError {
+            removeLanguageResourceStatus(id: statusID)
+        } catch {
+            upsertLanguageResourceStatus(
+                LanguageResourceStatus(
+                    id: statusID,
+                    kind: .translation,
+                    title: title,
+                    detail: localizedErrorDescription(error),
+                    progress: nil,
+                    isError: true
+                )
+            )
+        }
+
         return nil
     }
 
@@ -1231,8 +1328,26 @@ final class AppModel: ObservableObject {
         from sourceLanguageID: String,
         to targetLanguageID: String
     ) async throws {
-        _ = sourceLanguageID
-        _ = targetLanguageID
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await self.appleTranslationService.prepareTranslation(
+                    from: sourceLanguageID,
+                    to: targetLanguageID
+                )
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.translationResourcePreparationTimeoutNanoseconds)
+                throw LanguageResourcePreparationError.translationDownloadTimedOut
+            }
+
+            do {
+                try await group.next()
+                group.cancelAll()
+            } catch {
+                group.cancelAll()
+                throw error
+            }
+        }
     }
 
     @available(macOS 26.0, *)
@@ -1310,6 +1425,7 @@ final class AppModel: ObservableObject {
         cancelPendingDraftClear()
         activeDraftSourceLanguageID = sourceLanguageID
         activeDraftTargetLanguageID = targetLanguageID
+        overlayState?.skipCommittedFadeIn = false
         overlayState?.draftSourceText = draftText
         overlayState?.draftStablePrefixLength = min(draft?.stablePrefixLength ?? 0, draftText.count)
         overlayState?.draftPromotionID = draftPromotionID
@@ -1387,10 +1503,7 @@ final class AppModel: ObservableObject {
     private func clearDraftOverlay() {
         draftClearTask?.cancel()
         draftClearTask = nil
-        overlayState?.draftSourceText = nil
-        overlayState?.draftStablePrefixLength = 0
-        overlayState?.draftPromotionID = nil
-        overlayState?.clearDraftTranslation()
+        clearDraftOverlayState()
         activeDraftSourceLanguageID = nil
         activeDraftTargetLanguageID = nil
         lastDraftSourceID = nil
@@ -1400,6 +1513,13 @@ final class AppModel: ObservableObject {
         draftTranslationTask?.cancel()
         draftTranslationTask = nil
         draftTranslationGeneration &+= 1
+    }
+
+    private func clearDraftOverlayState() {
+        overlayState?.draftSourceText = nil
+        overlayState?.draftStablePrefixLength = 0
+        overlayState?.draftPromotionID = nil
+        overlayState?.clearDraftTranslation()
     }
 
     private func scheduleDraftTranslation(
@@ -1496,6 +1616,7 @@ final class AppModel: ObservableObject {
         overlayState?.translatedText = ""
         overlayState?.sourceText = ""
         overlayState?.committedPromotionID = nil
+        overlayState?.skipCommittedFadeIn = false
         displayedCaption = nil
         displayedCaptionLastVisualUpdateAt = Date.distantPast
         displayedCaptionLastVisualUpdateWasLateTranslation = false
@@ -1516,12 +1637,55 @@ final class AppModel: ObservableObject {
         )
     }
 
+    private func promoteCommittedOverlay(
+        translatedText: String,
+        sourceText: String,
+        promotionID: UUID,
+        sourceName: String,
+        previousHistoryPayload: (translatedText: String, sourceText: String)?,
+        previousCaptionID: UUID?,
+        previousPromotionID: UUID?,
+        skipCommittedFadeIn: Bool
+    ) {
+        guard var state = overlayState else { return }
+
+        if let previousHistoryPayload {
+            rememberArchivedCaption(
+                sourceText: previousHistoryPayload.sourceText,
+                promotionID: previousPromotionID
+            )
+            appendOverlayHistoryEntry(
+                to: &state,
+                captionID: previousCaptionID,
+                translatedText: previousHistoryPayload.translatedText,
+                sourceText: previousHistoryPayload.sourceText
+            )
+        }
+
+        state.captionEpoch += 1
+        state.translatedText = translatedText
+        state.sourceText = sourceText
+        state.sourceName = sourceName
+        state.committedPromotionID = promotionID
+        state.skipCommittedFadeIn = skipCommittedFadeIn
+        state.draftSourceText = nil
+        state.draftStablePrefixLength = 0
+        state.draftPromotionID = nil
+        state.clearDraftTranslation()
+
+        overlayState = state
+        clampOverlayHistoryScrollOffset()
+        displayedCaptionLastVisualUpdateAt = Date()
+        displayedCaptionLastVisualUpdateWasLateTranslation = false
+    }
+
     private func updateCommittedOverlay(
         translatedText: String,
         sourceText: String,
         promotionID: UUID? = nil,
         bumpEpoch: Bool = false,
-        lateTranslation: Bool = false
+        lateTranslation: Bool = false,
+        clearsDraft: Bool = false
     ) {
         if bumpEpoch {
             overlayState?.captionEpoch = (overlayState?.captionEpoch ?? 0) + 1
@@ -1531,6 +1695,9 @@ final class AppModel: ObservableObject {
         overlayState?.sourceText = sourceText
         if let promotionID {
             overlayState?.committedPromotionID = promotionID
+        }
+        if clearsDraft {
+            clearDraftOverlayState()
         }
         displayedCaptionLastVisualUpdateAt = Date()
         displayedCaptionLastVisualUpdateWasLateTranslation = lateTranslation
@@ -1897,9 +2064,6 @@ final class AppModel: ObservableObject {
                 updateReadyCaptionTranslation(nil, for: caption.id)
             }
 
-            // Archive the current caption before the next sentence replaces it.
-            capturePreviousCaption()
-
             // Use the best available translation for the initial committed display:
             // 1. Pre-computed caption translation (if ready)
             // 2. Draft translation captured at the promotion moment
@@ -1908,6 +2072,9 @@ final class AppModel: ObservableObject {
             let initialTranslation = earlyTranslation
                 ?? (caption.promotedDraftTranslation?.isEmpty == false ? caption.promotedDraftTranslation : nil)
             let translationExpected = caption.sourceLanguageID != caption.targetLanguageID
+            let previousHistoryPayload = currentCommittedCaptionHistoryPayload()
+            let previousCaptionID = displayedCaption?.id
+            let previousPromotionID = displayedCaption?.promotionID
 
             cancelCommittedCaptionArchive()
             displayedCaption = caption
@@ -1916,21 +2083,21 @@ final class AppModel: ObservableObject {
             // text replaces the draft seamlessly instead of flashing.
             let hadDraftTranslation = initialTranslation?.isEmpty == false
 
-            overlayState?.skipCommittedFadeIn = hadDraftTranslation
-            updateCommittedOverlay(
+            promoteCommittedOverlay(
                 translatedText: initialTranslation ?? (translationExpected ? "" : caption.sourceText),
                 sourceText: caption.sourceText,
                 promotionID: caption.promotionID,
-                bumpEpoch: true
+                sourceName: caption.sourceName,
+                previousHistoryPayload: previousHistoryPayload,
+                previousCaptionID: previousCaptionID,
+                previousPromotionID: previousPromotionID,
+                skipCommittedFadeIn: hadDraftTranslation
             )
             upsertTranscriptEntry(
                 id: caption.id,
                 sourceText: caption.sourceText,
                 translatedText: initialTranslation ?? (translationExpected ? "" : caption.sourceText)
             )
-            overlayState?.sourceName = caption.sourceName
-            clearDraftOverlay()
-
             let finalTranslation: String?
             if let earlyTranslation {
                 finalTranslation = earlyTranslation
@@ -2461,7 +2628,11 @@ final class AppModel: ObservableObject {
     ) async throws -> String {
         switch translationProvider {
         case .apple:
-            fallthrough
+            return try await appleTranslationService.translate(
+                text,
+                from: sourceLanguageID,
+                to: targetLanguageID
+            )
         case .openAICompatible:
             return try await openAICompatibleTranslationService.translate(
                 text,
@@ -2783,11 +2954,28 @@ final class AppModel: ObservableObject {
         translatedText: String,
         sourceText: String
     ) {
+        guard var state = overlayState else { return }
+        appendOverlayHistoryEntry(
+            to: &state,
+            captionID: captionID,
+            translatedText: translatedText,
+            sourceText: sourceText
+        )
+        overlayState = state
+        clampOverlayHistoryScrollOffset()
+    }
+
+    private func appendOverlayHistoryEntry(
+        to state: inout OverlayPreviewState,
+        captionID: UUID? = nil,
+        translatedText: String,
+        sourceText: String
+    ) {
         guard shouldStoreOverlayHistory(translatedText: translatedText, sourceText: sourceText) else {
             return
         }
 
-        if let lastEntry = overlayState?.history.last,
+        if let lastEntry = state.history.last,
            lastEntry.translatedText == translatedText,
            lastEntry.sourceText == sourceText {
             return
@@ -2797,7 +2985,7 @@ final class AppModel: ObservableObject {
             overlayHistoryScrollOffset += 1
         }
 
-        overlayState?.history.append(
+        state.history.append(
             OverlayHistoryEntry(
                 id: captionID ?? UUID(),
                 translatedText: translatedText,
@@ -2805,15 +2993,13 @@ final class AppModel: ObservableObject {
             )
         )
 
-        let overflow = max(0, (overlayState?.history.count ?? 0) - Self.overlayHistoryLimit)
+        let overflow = max(0, state.history.count - Self.overlayHistoryLimit)
         if overflow > 0 {
-            overlayState?.history.removeFirst(overflow)
+            state.history.removeFirst(overflow)
             if overlayHistoryScrollOffset > 0 {
                 overlayHistoryScrollOffset = max(0, overlayHistoryScrollOffset - overflow)
             }
         }
-
-        clampOverlayHistoryScrollOffset()
     }
 
     private func shouldStoreOverlayHistory(translatedText: String, sourceText: String) -> Bool {
@@ -2943,6 +3129,7 @@ private extension AppModel {
     static let transcriptHistoryLimit = 2_000
     static let draftClearDelayNanoseconds: UInt64 = 150_000_000
     static let committedCaptionIdleArchiveDelay: TimeInterval = 0.9
+    static let translationResourcePreparationTimeoutNanoseconds: UInt64 = 20_000_000_000
     static let archivedCaptionReplaySuppressionWindow: TimeInterval = 1.8
     static let archivedCaptionReplaySimilarityThreshold = 0.18
     static let archivedCaptionNearDuplicateMinimumLength = 8
