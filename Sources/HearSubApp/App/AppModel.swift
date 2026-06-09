@@ -202,6 +202,12 @@ final class AppModel: ObservableObject {
         }
     }
 
+    @Published var stopsSessionWhenHidingOverlay: Bool {
+        didSet {
+            persistSettings()
+        }
+    }
+
     init(
         settingsStore: SettingsStore,
         transcriptStore: TranscriptStore = TranscriptStore(),
@@ -236,6 +242,7 @@ final class AppModel: ObservableObject {
         self.glossary = settings.glossary
         self.translationProvider = .openAICompatible
         self.openAICompatibleTranslation = settings.openAICompatibleTranslation
+        self.stopsSessionWhenHidingOverlay = settings.stopsSessionWhenHidingOverlay
         self.hasCompletedOnboarding = settings.hasCompletedOnboarding
         self.transcriptSessions = persistedTranscript.sessions
         self.transcriptEntries = persistedTranscript.sessions.last?.entries ?? persistedTranscript.entries
@@ -816,6 +823,7 @@ final class AppModel: ObservableObject {
             glossary: glossary,
             translationProvider: translationProvider,
             openAICompatibleTranslation: openAICompatibleTranslation,
+            stopsSessionWhenHidingOverlay: stopsSessionWhenHidingOverlay,
             hasCompletedOnboarding: hasCompletedOnboarding
         )
 

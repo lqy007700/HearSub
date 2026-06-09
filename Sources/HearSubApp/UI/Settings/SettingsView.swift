@@ -264,6 +264,18 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 settingsCard {
+                    sectionHeader(model.localized(.subtitleOverlay), icon: "captions.bubble")
+                    settingsRow(model.localized(.stopWhenHidingOverlay)) {
+                        Toggle("", isOn: $model.stopsSessionWhenHidingOverlay)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                    Text(model.localized(.stopWhenHidingOverlayHint))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                settingsCard {
                     sectionHeader(model.localized(.subtitleColor), icon: "paintpalette")
                     settingsRow(model.localized(.subtitleColor)) {
                         ColorPicker("", selection: subtitleColorBinding, supportsOpacity: false)

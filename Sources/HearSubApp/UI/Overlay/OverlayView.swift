@@ -997,7 +997,9 @@ struct OverlayCloseButtonView: View {
         .buttonStyle(.plain)
         .frame(width: OverlayControlsLayout.controlSize, height: OverlayControlsLayout.controlSize)
         .onHover { isHovering = $0 }
-        .help(model.localized(.hideOverlay))
+        .help(model.stopsSessionWhenHidingOverlay && model.sessionState == .running
+              ? model.localized(.stop)
+              : model.localized(.hideOverlay))
     }
 }
 

@@ -74,6 +74,8 @@ enum AppTextKey: String {
     case sourceTerm
     case targetTerm
     case subtitleOverlay
+    case stopWhenHidingOverlay
+    case stopWhenHidingOverlayHint
     case onlyThreeControlsAcceptClicks
     case textOutline
     case outlineColor
@@ -388,6 +390,8 @@ enum AppLocalization {
             "sourceTerm": "Source term",
             "targetTerm": "Target term",
             "subtitleOverlay": "Subtitle Overlay",
+            "stopWhenHidingOverlay": "Stop transcription when closing subtitles",
+            "stopWhenHidingOverlayHint": "When enabled, the close button on the subtitle overlay stops the current session instead of only hiding subtitles.",
             "onlyThreeControlsAcceptClicks": "Only the 3 controls accept clicks",
             "textOutline": "Text Outline",
             "outlineColor": "Outline Color",
@@ -582,6 +586,8 @@ enum AppLocalization {
             "sourceTerm": "源词",
             "targetTerm": "目标词",
             "subtitleOverlay": "字幕浮层",
+            "stopWhenHidingOverlay": "关闭字幕时停止转写",
+            "stopWhenHidingOverlayHint": "开启后，点击字幕浮层的关闭按钮会停止当前会话，而不是只隐藏字幕。",
             "onlyThreeControlsAcceptClicks": "只有这 3 个控件可点击",
             "textOutline": "文字描边",
             "outlineColor": "描边颜色",

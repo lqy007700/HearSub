@@ -275,7 +275,11 @@ final class OverlayWindowController {
     }
 
     private func handleCloseButtonPress() {
-        model.toggleOverlayVisibility()
+        if model.stopsSessionWhenHidingOverlay, model.sessionState == .running {
+            model.stopSession()
+        } else {
+            model.toggleOverlayVisibility()
+        }
     }
 
     private func scheduleWindowSync() {

@@ -33,6 +33,7 @@ struct AppSettings: Codable {
     var glossary: [String: String]
     var translationProvider: TranslationProvider
     var openAICompatibleTranslation: OpenAICompatibleTranslationSettings
+    var stopsSessionWhenHidingOverlay: Bool
     var hasCompletedOnboarding: Bool
 
     static let `default` = AppSettings(
@@ -49,6 +50,7 @@ struct AppSettings: Codable {
         glossary: [:],
         translationProvider: .openAICompatible,
         openAICompatibleTranslation: .default,
+        stopsSessionWhenHidingOverlay: false,
         hasCompletedOnboarding: false
     )
 
@@ -84,6 +86,8 @@ struct AppSettings: Codable {
                 forKey: .openAICompatibleTranslation
             )
         ) ?? AppSettings.default.openAICompatibleTranslation
+        stopsSessionWhenHidingOverlay = (try? c.decodeIfPresent(Bool.self, forKey: .stopsSessionWhenHidingOverlay))
+            ?? AppSettings.default.stopsSessionWhenHidingOverlay
         hasCompletedOnboarding = (try? c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding))
             ?? AppSettings.default.hasCompletedOnboarding
     }
@@ -102,6 +106,7 @@ struct AppSettings: Codable {
         glossary: [String: String],
         translationProvider: TranslationProvider = .apple,
         openAICompatibleTranslation: OpenAICompatibleTranslationSettings = .default,
+        stopsSessionWhenHidingOverlay: Bool = false,
         hasCompletedOnboarding: Bool = false
     ) {
         self.selectedSourceID = selectedSourceID
@@ -117,6 +122,7 @@ struct AppSettings: Codable {
         self.glossary         = glossary
         self.translationProvider = translationProvider
         self.openAICompatibleTranslation = openAICompatibleTranslation
+        self.stopsSessionWhenHidingOverlay = stopsSessionWhenHidingOverlay
         self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 }
