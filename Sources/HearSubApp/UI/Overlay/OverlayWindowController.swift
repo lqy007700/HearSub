@@ -7,7 +7,6 @@ import SwiftUI
 final class OverlayWindowController {
     private let model: AppModel
     private let showTranscript: () -> Void
-    private let showStyleSettings: () -> Void
     private let interactionState = OverlayInteractionState()
     private let panel: OverlayPanel
     private let controlsChromePanel: OverlayPanel
@@ -39,11 +38,6 @@ final class OverlayWindowController {
     private var lastSourceWindowFrame: NSRect?
     private var attachToSourceRefreshTask: Task<Void, Never>?
     private var lastAttachToSourceUsesHighLevel: Bool?
-    private var eventMonitors: [Any] = []
-    private var observedMouseDownLocation: NSPoint?
-    private var observedMouseDownTimestamp: TimeInterval?
-    private var observedDragStartTopLeft: NSPoint?
-    private var observedOverlayDragActive = false
 
     // MARK: - Genie Animation State
     var trayIconRectProvider: (() -> NSRect?)?
@@ -72,12 +66,10 @@ final class OverlayWindowController {
 
     init(
         model: AppModel,
-        showTranscript: @escaping () -> Void,
-        showStyleSettings: @escaping () -> Void
+        showTranscript: @escaping () -> Void
     ) {
         self.model = model
         self.showTranscript = showTranscript
-        self.showStyleSettings = showStyleSettings
         self.panel = OverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 1024, height: 120),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -178,7 +170,6 @@ final class OverlayWindowController {
             showTranscript: showTranscript
         )
         bindModel()
-        installEventMonitors()
         syncWindow()
     }
 
@@ -186,7 +177,6 @@ final class OverlayWindowController {
         mouseTrackingTimer?.invalidate()
         sourceWindowTrackingTimer?.invalidate()
         attachToSourceRefreshTask?.cancel()
-        Self.removeEventMonitors(eventMonitors)
     }
 
     private func configurePanels() {
@@ -200,10 +190,10 @@ final class OverlayWindowController {
         configurePanel(scrollbarPanel, acceptsInput: true, level: controlLevel)
         scrollbarPanel.contentView = scrollbarHostingView
 
-        configurePanel(moveButtonPanel, acceptsInput: false, level: controlLevel)
+        configurePanel(moveButtonPanel, acceptsInput: true, level: controlLevel)
         moveButtonPanel.contentView = moveButtonHostingView
 
-        configurePanel(closeButtonPanel, acceptsInput: false, level: controlLevel)
+        configurePanel(closeButtonPanel, acceptsInput: true, level: controlLevel)
         closeButtonPanel.contentView = closeButtonHostingView
 
         configurePanel(resizeButtonPanel, acceptsInput: false, level: controlLevel)
@@ -214,11 +204,11 @@ final class OverlayWindowController {
     }
 
     private var leftControlPanels: [OverlayPanel] {
-        [controlsChromePanel, moveButtonPanel, closeButtonPanel, resizeButtonPanel, resetSizeButtonPanel]
+        [controlsChromePanel, closeButtonPanel, moveButtonPanel]
     }
 
     private var leftControlButtonPanels: [OverlayPanel] {
-        [moveButtonPanel, resetSizeButtonPanel, closeButtonPanel, resizeButtonPanel]
+        [closeButtonPanel, moveButtonPanel]
     }
 
     private func configurePanel(_ panel: OverlayPanel, acceptsInput: Bool, level: NSWindow.Level) {
@@ -234,120 +224,6 @@ final class OverlayWindowController {
         panel.isMovable = false
         panel.isMovableByWindowBackground = false
         panel.collectionBehavior = Self.panelCollectionBehavior
-    }
-
-    private func installEventMonitors() {
-        let mask: NSEvent.EventTypeMask = [
-            .leftMouseDown,
-            .leftMouseDragged,
-            .leftMouseUp,
-            .rightMouseDown
-        ]
-
-        if let globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
-            Task { @MainActor [weak self] in
-                self?.handleOverlayGestureEvent(event)
-            }
-        }) {
-            eventMonitors.append(globalMonitor)
-        }
-
-        if let localMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: mask,
-            handler: { [weak self] event in
-                Task { @MainActor [weak self] in
-                    self?.handleOverlayGestureEvent(event)
-                }
-                return event
-            }
-        ) {
-            eventMonitors.append(localMonitor)
-        }
-    }
-
-    private func removeEventMonitors() {
-        Self.removeEventMonitors(eventMonitors)
-        eventMonitors.removeAll()
-    }
-
-    nonisolated private static func removeEventMonitors(_ monitors: [Any]) {
-        for monitor in monitors {
-            NSEvent.removeMonitor(monitor)
-        }
-    }
-
-    private func handleOverlayGestureEvent(_ event: NSEvent) {
-        guard panelsShown,
-              model.isOverlayVisible,
-              model.overlayState != nil else {
-            clearObservedOverlayDrag()
-            return
-        }
-
-        let mouseLocation = NSEvent.mouseLocation
-
-        switch event.type {
-        case .leftMouseDown:
-            guard panel.frame.contains(mouseLocation) else {
-                clearObservedOverlayDrag()
-                return
-            }
-
-            if event.clickCount >= 2 {
-                interactionState.setHistoryScrollOffset(0)
-                clearObservedOverlayDrag()
-                return
-            }
-
-            observedMouseDownLocation = mouseLocation
-            observedMouseDownTimestamp = event.timestamp
-            observedDragStartTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
-            observedOverlayDragActive = false
-
-        case .leftMouseDragged:
-            guard let startLocation = observedMouseDownLocation,
-                  let startTimestamp = observedMouseDownTimestamp,
-                  let startTopLeft = observedDragStartTopLeft else {
-                return
-            }
-
-            if observedOverlayDragActive == false {
-                let distance = hypot(mouseLocation.x - startLocation.x, mouseLocation.y - startLocation.y)
-                guard event.timestamp - startTimestamp >= Self.overlayDragActivationDelay,
-                      distance >= Self.overlayDragMinimumDistance else {
-                    return
-                }
-                dragStartTopLeft = startTopLeft
-                observedOverlayDragActive = true
-            }
-
-            updateControlDrag(
-                with: CGSize(
-                    width: mouseLocation.x - startLocation.x,
-                    height: mouseLocation.y - startLocation.y
-                )
-            )
-
-        case .leftMouseUp:
-            if observedOverlayDragActive {
-                endControlDrag()
-            }
-            clearObservedOverlayDrag()
-
-        case .rightMouseDown:
-            guard panel.frame.contains(mouseLocation) else { return }
-            showStyleSettings()
-
-        default:
-            break
-        }
-    }
-
-    private func clearObservedOverlayDrag() {
-        observedMouseDownLocation = nil
-        observedMouseDownTimestamp = nil
-        observedDragStartTopLeft = nil
-        observedOverlayDragActive = false
     }
 
     private func bindModel() {
@@ -408,7 +284,6 @@ final class OverlayWindowController {
             panelsShown = false
             stopMouseTracking()
             stopSourceWindowTracking()
-            clearObservedOverlayDrag()
             interactionState.updatePassThroughBubble(nil)
             animateGenieHide()
         }
@@ -438,7 +313,6 @@ final class OverlayWindowController {
             if geniePhase == .showing { cancelGenieAnimation() }
             stopMouseTracking()
             stopSourceWindowTracking()
-            clearObservedOverlayDrag()
             interactionState.updatePassThroughBubble(nil)
             animateGenieHide()
         } else if shouldShow && geniePhase == .idle {
@@ -677,6 +551,11 @@ final class OverlayWindowController {
         panel.orderFront(nil)
         panel.orderFrontRegardless()
 
+        for controlPanel in leftControlPanels {
+            controlPanel.orderFront(nil)
+            controlPanel.orderFrontRegardless()
+        }
+
         scrollbarPanel.orderFront(nil)
         scrollbarPanel.orderFrontRegardless()
     }
@@ -742,16 +621,26 @@ final class OverlayWindowController {
         }
 
         let scrollbarFrame = historyScrollbarFrame(relativeTo: overlayFrame)
+        let chromeFrame = controlsChromeFrame(relativeTo: overlayFrame)
+        let buttonFrames = controlButtonFrames(relativeTo: chromeFrame)
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.2
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 panel.animator().setFrame(overlayFrame, display: true)
+                controlsChromePanel.animator().setFrame(chromeFrame, display: true)
+                for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                    controlPanel.animator().setFrame(frame, display: true)
+                }
                 scrollbarPanel.animator().setFrame(scrollbarFrame, display: true)
             }
         } else {
             panel.setFrame(overlayFrame, display: true)
+            controlsChromePanel.setFrame(chromeFrame, display: true)
+            for (controlPanel, frame) in zip(leftControlButtonPanels, buttonFrames) {
+                controlPanel.setFrame(frame, display: true)
+            }
             scrollbarPanel.setFrame(scrollbarFrame, display: true)
         }
 
@@ -795,7 +684,7 @@ final class OverlayWindowController {
         let size = OverlayControlsLayout.stripSize
         return NSRect(
             x: overlayFrame.minX + OverlayControlsLayout.outerPadding,
-            y: overlayFrame.minY + OverlayControlsLayout.outerPadding,
+            y: overlayFrame.maxY - OverlayControlsLayout.outerPadding - size.height,
             width: size.width,
             height: size.height
         )
@@ -811,15 +700,12 @@ final class OverlayWindowController {
     }
 
     private func controlButtonFrames(relativeTo chromeFrame: NSRect) -> [NSRect] {
-        let buttonX = chromeFrame.minX + OverlayControlsLayout.controlPaddingX
-        let topButtonY = chromeFrame.maxY
-            - OverlayControlsLayout.controlPaddingY
-            - OverlayControlsLayout.controlSize
-
         return (0..<OverlayControlsLayout.controlCount).map { index in
             NSRect(
-                x: buttonX,
-                y: topButtonY - CGFloat(index) * (OverlayControlsLayout.controlSize + OverlayControlsLayout.controlSpacing),
+                x: chromeFrame.minX
+                    + OverlayControlsLayout.controlPaddingX
+                    + CGFloat(index) * (OverlayControlsLayout.controlSize + OverlayControlsLayout.controlSpacing),
+                y: chromeFrame.midY - (OverlayControlsLayout.controlSize / 2),
                 width: OverlayControlsLayout.controlSize,
                 height: OverlayControlsLayout.controlSize
             )
@@ -1081,7 +967,7 @@ final class OverlayWindowController {
         let controlLevel = NSWindow.Level(rawValue: contentLevel.rawValue + 1)
 
         let allContentPanels: [OverlayPanel] = [panel]
-        let allControlPanels: [OverlayPanel] = [scrollbarPanel]
+        let allControlPanels: [OverlayPanel] = leftControlPanels + [scrollbarPanel]
 
         for p in allContentPanels {
             p.level = contentLevel
@@ -1298,8 +1184,6 @@ private extension OverlayWindowController {
     static let mouseTrackingActivationPadding: CGFloat = 96
     static let passThroughBubbleDiameter: CGFloat = 118
     static let scrollbarRevealDistance: CGFloat = 42
-    static let overlayDragActivationDelay: TimeInterval = 0.22
-    static let overlayDragMinimumDistance: CGFloat = 4
     static let panelCollectionBehavior: NSWindow.CollectionBehavior = [
         .fullScreenAuxiliary,
         .ignoresCycle,

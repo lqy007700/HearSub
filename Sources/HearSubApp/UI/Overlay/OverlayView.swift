@@ -928,12 +928,13 @@ private struct OverlayTranslationHostModifier: ViewModifier {
 
 struct OverlayControlsChromeView: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: OverlayPanelMetrics.cornerRadius, style: .continuous)
-            .fill(Color.black.opacity(0.28))
+        Capsule(style: .continuous)
+            .fill(.ultraThinMaterial)
             .overlay(
-                RoundedRectangle(cornerRadius: OverlayPanelMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
             )
+            .shadow(color: .black.opacity(0.16), radius: 6, y: 2)
             .frame(width: OverlayControlsLayout.stripSize.width, height: OverlayControlsLayout.stripSize.height)
     }
 }
@@ -962,13 +963,14 @@ struct OverlayMoveButtonView: View {
             }
         )
         .frame(width: OverlayControlsLayout.controlSize, height: OverlayControlsLayout.controlSize)
-        .background(Circle().fill(Color.white.opacity(0.12)))
+        .background(Circle().fill(Color(nsColor: .controlColor).opacity(0.82)))
         .overlay(
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.white.opacity(0.65))
+            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 .allowsHitTesting(false)
         )
+        .help("Drag")
     }
 }
 
@@ -979,14 +981,15 @@ struct OverlayCloseButtonView: View {
     var body: some View {
         Button { onClose() } label: {
             ZStack {
-                Circle().fill(Color.white.opacity(0.12))
+                Circle().fill(Color(red: 1.0, green: 0.36, blue: 0.32))
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.65))
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundColor(Color(red: 0.44, green: 0.05, blue: 0.03).opacity(0.72))
             }
         }
         .buttonStyle(.plain)
         .frame(width: OverlayControlsLayout.controlSize, height: OverlayControlsLayout.controlSize)
+        .help(model.localized(.hideOverlay))
     }
 }
 
@@ -1106,25 +1109,25 @@ struct OverlayHistoryScrollbarView: View {
 }
 
 enum OverlayControlsLayout {
-    static let outerPadding: CGFloat = 4
+    static let outerPadding: CGFloat = 6
     static let leadingInset: CGFloat = 10
-    static let controlPaddingX: CGFloat = 5
-    static let controlPaddingY: CGFloat = 7
-    static let controlSize: CGFloat = 22
-    static let controlSpacing: CGFloat = 6
+    static let controlPaddingX: CGFloat = 8
+    static let controlPaddingY: CGFloat = 6
+    static let controlSize: CGFloat = 14
+    static let controlSpacing: CGFloat = 8
 
-    static let controlCount = 4
+    static let controlCount = 2
 
     static var stripSize: CGSize {
-        let controlStackHeight = (controlSize * CGFloat(controlCount))
+        let controlStackWidth = (controlSize * CGFloat(controlCount))
             + (controlSpacing * CGFloat(controlCount - 1))
         return CGSize(
-            width: controlSize + (controlPaddingX * 2),
-            height: controlStackHeight + (controlPaddingY * 2)
+            width: controlStackWidth + (controlPaddingX * 2),
+            height: controlSize + (controlPaddingY * 2)
         )
     }
 
-    /// Control panel chrome height (four buttons + vertical padding inside the strip).
+    /// Control panel chrome height (two macOS-style buttons + vertical padding inside the strip).
     static var controlPanelHeight: CGFloat {
         stripSize.height
     }

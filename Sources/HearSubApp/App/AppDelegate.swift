@@ -54,9 +54,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model: appModel,
             showTranscript: { [weak self] in
                 self?.transcriptWindowController.showTranscript()
-            },
-            showStyleSettings: { [weak settingsWindowController] in
-                settingsWindowController?.showSettings()
             }
         )
         let statusBarController = StatusBarController(
