@@ -49,7 +49,7 @@ The script will:
   1. Require a clean git worktree on the default branch.
   2. Bump MARKETING_VERSION and CURRENT_PROJECT_VERSION in the Xcode project.
   3. Commit the version bump, create and push tag v<version>.
-  4. GitHub Actions will handle the build, packaging, and release creation.
+  4. GitHub Actions will handle the build, DMG packaging, and release creation.
 EOF
 }
 

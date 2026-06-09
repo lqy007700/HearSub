@@ -5,8 +5,8 @@ import Speech
 import SwiftUI
 
 private enum AppBuildInfo {
-    static let marketingVersion = "0.3.32"
-    static let buildNumber = "36"
+    static let marketingVersion = "1.0.0"
+    static let buildNumber = "37"
     static let repositoryURLString = "https://github.com/lqy007700/HearSub"
     static let repositoryURL = URL(string: repositoryURLString)
 }

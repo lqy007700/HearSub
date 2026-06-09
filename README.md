@@ -98,7 +98,7 @@ scripts/release.sh         release helper for version bumps and GitHub releases
 
 ## Release Notes
 
-Tagged releases are built by the GitHub Actions release workflow. Release artifacts are published as zipped `.app` bundles with a Sparkle appcast.
+Tagged releases are built by the GitHub Actions release workflow. Release artifacts are published as `.dmg` installers with a Sparkle appcast.
 
 ## License
 
