@@ -245,7 +245,6 @@ struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                glossaryCard
             }
             .padding(20)
         }
@@ -379,50 +378,6 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(20)
-        }
-    }
-
-    // MARK: - Glossary
-
-    private var glossaryCard: some View {
-        settingsCard {
-            sectionHeader(model.localized(.glossary), icon: "text.book.closed")
-            if model.glossary.isEmpty {
-                Text(model.localized(.glossaryEmpty))
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
-            } else {
-                ForEach(Array(model.glossary.keys.sorted()), id: \.self) { key in
-                    HStack {
-                        Text(key)
-                            .font(.callout)
-                        Image(systemName: "arrow.right")
-                            .foregroundStyle(.tertiary)
-                            .font(.caption2)
-                        Text(model.glossary[key] ?? "")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button {
-                            model.glossary.removeValue(forKey: key)
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundStyle(.red.opacity(0.8))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Divider()
-                }
-            }
-            GlossaryAddRow(
-                sourcePlaceholder: model.localized(.sourceTerm),
-                targetPlaceholder: model.localized(.targetTerm)
-            ) { source, target in
-                guard !source.isEmpty, !target.isEmpty else { return }
-                model.glossary[source] = target
-            }
         }
     }
 
@@ -643,43 +598,6 @@ struct LanguageResourceStatusListView: View {
                 .padding(10)
                 .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
             }
-        }
-    }
-}
-
-private struct GlossaryAddRow: View {
-    let sourcePlaceholder: String
-    let targetPlaceholder: String
-    let onAdd: (String, String) -> Void
-    @State private var source = ""
-    @State private var target = ""
-
-    var body: some View {
-        HStack(spacing: 8) {
-            TextField(sourcePlaceholder, text: $source)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: .infinity)
-
-            Image(systemName: "arrow.right")
-                .foregroundStyle(.tertiary)
-                .font(.caption2)
-
-            TextField(targetPlaceholder, text: $target)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: .infinity)
-
-            Button {
-                onAdd(source.trimmingCharacters(in: .whitespaces),
-                      target.trimmingCharacters(in: .whitespaces))
-                source = ""
-                target = ""
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.green)
-            }
-            .buttonStyle(.plain)
-            .disabled(source.trimmingCharacters(in: .whitespaces).isEmpty
-                      || target.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 }
