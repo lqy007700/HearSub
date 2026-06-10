@@ -4,7 +4,7 @@ Live bilingual subtitles for macOS.
 
 HearSub sits in the menu bar, listens to your microphone or Mac audio, and shows a compact two-line subtitle overlay above whatever app you are using. It is built for meetings, calls, livestreams, videos, online classes, and any situation where you want to hear one language while reading another.
 
-[中文文档](README.zh-CN.md) · [Releases](https://github.com/lqy007700/HearSub/releases)
+[中文文档](README.zh-CN.md) · [Releases](https://github.com/lqy007700/HearSub/releases) · [Telegram @hearsub](https://t.me/+jCiQnWqrbLVjZTgx)
 
 ## What It Does
 
