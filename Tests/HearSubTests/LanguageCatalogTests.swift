@@ -29,6 +29,30 @@ final class LanguageCatalogTests: XCTestCase {
         }
     }
 
+    func testTranslationLanguagesUseRegionalDefaults() {
+        let expectedLocaleIdentifiers: [String: String] = [
+            "en": "en-US",
+            "zh-Hans": "zh-CN",
+            "yue": "yue-CN",
+            "es": "es-ES",
+            "de": "de-DE",
+            "ja": "ja-JP",
+            "fr": "fr-FR",
+            "it": "it-IT",
+            "ko": "ko-KR",
+            "ar": "ar-SA",
+            "pt": "pt-BR",
+            "ru": "ru-RU",
+        ]
+
+        for option in LanguageCatalog.speechInput + LanguageCatalog.common {
+            XCTAssertEqual(
+                LanguageCatalog.translationLocaleIdentifier(for: option.id),
+                expectedLocaleIdentifiers[option.id]
+            )
+        }
+    }
+
     func testUnsupportedStoredSpeechInputFallsBackToEnglish() {
         XCTAssertEqual(LanguageCatalog.supportedSpeechInputLanguageID(for: "ru"), "en")
         XCTAssertEqual(LanguageCatalog.supportedSpeechInputLanguageID(for: "ar"), "en")

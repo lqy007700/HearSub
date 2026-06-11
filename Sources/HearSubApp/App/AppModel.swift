@@ -5,8 +5,8 @@ import Speech
 import SwiftUI
 
 private enum AppBuildInfo {
-    static let marketingVersion = "1.0.0"
-    static let buildNumber = "37"
+    static let marketingVersion = "1.0.1"
+    static let buildNumber = "38"
     static let repositoryURLString = "https://github.com/lqy007700/HearSub"
     static let repositoryURL = URL(string: repositoryURLString)
 }
@@ -1308,6 +1308,30 @@ final class AppModel: ObservableObject {
             removeLanguageResourceStatus(id: statusID)
         } catch is CancellationError {
             removeLanguageResourceStatus(id: statusID)
+        } catch AppleTranslationService.ServiceError.resourcesNotInstalled {
+            upsertLanguageResourceStatus(
+                LanguageResourceStatus(
+                    id: statusID,
+                    kind: .translation,
+                    title: title,
+                    detail: localized(.manualTranslationDownloadDetail),
+                    progress: nil,
+                    isError: true,
+                    actionURLString: LanguageResourceSystemSettingsDestination.translationLanguages.urlString
+                )
+            )
+            return .translationLanguages
+        } catch AppleTranslationService.ServiceError.unsupportedLanguagePair {
+            upsertLanguageResourceStatus(
+                LanguageResourceStatus(
+                    id: statusID,
+                    kind: .translation,
+                    title: title,
+                    detail: localized(.translationUnsupportedFromToFormat, languageName(for: sourceLanguageID), languageName(for: targetLanguageID)),
+                    progress: nil,
+                    isError: true
+                )
+            )
         } catch {
             upsertLanguageResourceStatus(
                 LanguageResourceStatus(
@@ -3232,6 +3256,7 @@ struct LanguageResourceStatus: Identifiable, Equatable {
     let detail: String
     let progress: Double?
     let isError: Bool
+    var actionURLString: String? = nil
 }
 
 @MainActor

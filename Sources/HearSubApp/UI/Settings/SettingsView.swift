@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -702,9 +703,7 @@ struct LanguageResourceStatusListView: View {
                     }
 
                     if status.isError {
-                        Text(status.detail)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        statusDetail(status)
                     } else if let progress = status.progress {
                         ProgressView(value: progress)
                             .progressViewStyle(.linear)
@@ -726,6 +725,28 @@ struct LanguageResourceStatusListView: View {
                 .padding(10)
                 .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
             }
+        }
+    }
+
+    @ViewBuilder
+    private func statusDetail(_ status: LanguageResourceStatus) -> some View {
+        if let actionURLString = status.actionURLString,
+           let url = URL(string: actionURLString) {
+            Button {
+                NSWorkspace.shared.open(url)
+            } label: {
+                Text(status.detail)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .underline()
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text(status.detail)
+                .font(.caption)
+                .foregroundStyle(.red)
         }
     }
 }

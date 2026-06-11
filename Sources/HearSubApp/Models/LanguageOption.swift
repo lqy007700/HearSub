@@ -71,4 +71,22 @@ enum LanguageCatalog {
         default: return identifier
         }
     }
+
+    static func translationLocaleIdentifier(for identifier: String) -> String {
+        switch identifier {
+        case "en": return "en-US"
+        case "zh-Hans": return "zh-CN"
+        case "yue": return "yue-CN"
+        case "es": return "es-ES"
+        case "de": return "de-DE"
+        case "ja": return "ja-JP"
+        case "fr": return "fr-FR"
+        case "it": return "it-IT"
+        case "ko": return "ko-KR"
+        case "ar": return "ar-SA"
+        case "pt": return "pt-BR"
+        case "ru": return "ru-RU"
+        default: return identifier
+        }
+    }
 }
