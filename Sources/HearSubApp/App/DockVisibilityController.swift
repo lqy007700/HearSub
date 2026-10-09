@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class DockVisibilityController {
     enum Reason: Hashable {
+        case applicationLifetime
         case settingsWindow
     }
 

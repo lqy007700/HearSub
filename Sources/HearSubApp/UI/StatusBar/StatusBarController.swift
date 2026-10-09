@@ -33,6 +33,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     }
 
     private func configureStatusItem() {
+        restoreVisibility()
         guard let button = statusItem.button else {
             return
         }
@@ -41,6 +42,10 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         button.target = self
         button.imagePosition = .imageOnly
         button.toolTip = "HearSub"
+    }
+
+    func restoreVisibility() {
+        statusItem.isVisible = true
     }
 
     private func configurePopover() {

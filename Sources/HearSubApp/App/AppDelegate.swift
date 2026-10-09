@@ -36,7 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        NSApp.setActivationPolicy(.accessory)
+        // Keep a recovery entry point even when subtitles and settings are closed.
+        dockVisibilityController.setVisible(true, for: .applicationLifetime)
 
         let settingsWindowController = SettingsWindowController(
             model: appModel,
@@ -86,6 +87,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.updateSourceRefreshTimer(for: state)
             }
             .store(in: &cancellables)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Overlay panels may still be visible; always reopen the management window.
+        statusBarController?.restoreVisibility()
+        settingsWindowController?.showSettings()
+        return false
     }
 
     // MARK: - Single-instance enforcement
@@ -320,6 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
+                self.statusBarController?.restoreVisibility()
                 self.settingsWindowController?.showSettings()
                 NSApp.activate(ignoringOtherApps: true)
                 DistributedNotificationCenter.default().postNotificationName(

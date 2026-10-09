@@ -45,6 +45,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         )
         window.contentViewController = hostingController
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 620, height: 520))
         window.center()
         super.init(window: window)
@@ -72,6 +73,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         model.refreshSources()
         launchAtLoginService.refreshStatus()
         dockVisibilityController.setVisible(true, for: .settingsWindow)
+        if window?.isMiniaturized == true {
+            window?.deminiaturize(nil)
+        }
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
