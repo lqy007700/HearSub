@@ -7,6 +7,9 @@ final class OpenAICompatibleTranslationService: Sendable {
         case missingAPIKey
         case missingModel
         case invalidResponse
+        case outputLimitReached
+        case reasoningOnlyResponse
+        case emptyTranslation(String?)
         case noModels
         case requestFailed(Int, String)
 
@@ -22,6 +25,13 @@ final class OpenAICompatibleTranslationService: Sendable {
                 return "OpenAI-compatible translation model is empty."
             case .invalidResponse:
                 return "OpenAI-compatible translation response was invalid."
+            case .outputLimitReached:
+                return "Translation reached the output token limit before completing. Use a non-thinking model for live subtitles."
+            case .reasoningOnlyResponse:
+                return "The model returned reasoning but no translated text. Use a non-thinking model for live subtitles."
+            case .emptyTranslation(let finishReason):
+                let detail = finishReason.map { " (finish_reason: \($0))" } ?? ""
+                return "The model returned no translated text\(detail)."
             case .noModels:
                 return "OpenAI-compatible model list was empty."
             case .requestFailed(let statusCode, let body):
@@ -84,11 +94,16 @@ final class OpenAICompatibleTranslationService: Sendable {
         guard apiKey.isEmpty == false else { throw ServiceError.missingAPIKey }
         guard model.isEmpty == false else { throw ServiceError.missingModel }
 
+        let normalizedModel = model.lowercased().split(separator: "/").last.map(String.init) ?? ""
+        let isDeepSeek = endpoint.host?.lowercased() == "api.deepseek.com"
+            || normalizedModel.hasPrefix("deepseek-")
+        let isReasoner = isDeepSeek && normalizedModel.contains("reasoner")
+
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 12
+        request.timeoutInterval = isReasoner ? 60 : 12
 
         let payload = ChatCompletionRequest(
             model: model,
@@ -104,8 +119,10 @@ final class OpenAICompatibleTranslationService: Sendable {
                 )
             ],
             temperature: 0.1,
-            maxTokens: max(64, min(512, trimmedText.count * 2 + 32)),
-            stream: false
+            maxTokens: isReasoner ? 8192 : max(64, min(512, trimmedText.count * 2 + 32)),
+            stream: false,
+            // DeepSeek defaults to thinking, which can consume the entire subtitle budget.
+            thinking: isDeepSeek && !isReasoner ? .init(type: "disabled") : nil
         )
         request.httpBody = try JSONEncoder().encode(payload)
 
@@ -119,13 +136,27 @@ final class OpenAICompatibleTranslationService: Sendable {
             throw ServiceError.requestFailed(httpResponse.statusCode, body)
         }
 
-        let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-        guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
-              content.isEmpty == false else {
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch is DecodingError {
             throw ServiceError.invalidResponse
         }
+        guard let choice = decoded.choices.first else {
+            throw ServiceError.emptyTranslation(nil)
+        }
+        guard choice.finishReason != "length" else {
+            throw ServiceError.outputLimitReached
+        }
+        let content = stripWrappingQuotes(choice.message.content ?? "")
+        guard content.isEmpty == false else {
+            if choice.message.reasoningContent?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                throw ServiceError.reasoningOnlyResponse
+            }
+            throw ServiceError.emptyTranslation(choice.finishReason)
+        }
 
-        return stripWrappingQuotes(content)
+        return content
     }
 
     private var systemPrompt: String {
@@ -215,6 +246,10 @@ final class OpenAICompatibleTranslationService: Sendable {
 }
 
 private struct ChatCompletionRequest: Encodable {
+    struct Thinking: Encodable {
+        let type: String
+    }
+
     struct Message: Encodable {
         let role: String
         let content: String
@@ -225,6 +260,7 @@ private struct ChatCompletionRequest: Encodable {
     let temperature: Double
     let maxTokens: Int
     let stream: Bool
+    let thinking: Thinking?
 
     enum CodingKeys: String, CodingKey {
         case model
@@ -232,16 +268,29 @@ private struct ChatCompletionRequest: Encodable {
         case temperature
         case maxTokens = "max_tokens"
         case stream
+        case thinking
     }
 }
 
 private struct ChatCompletionResponse: Decodable {
     struct Choice: Decodable {
         struct Message: Decodable {
-            let content: String
+            let content: String?
+            let reasoningContent: String?
+
+            enum CodingKeys: String, CodingKey {
+                case content
+                case reasoningContent = "reasoning_content"
+            }
         }
 
         let message: Message
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
     }
 
     let choices: [Choice]
